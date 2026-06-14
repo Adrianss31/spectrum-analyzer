@@ -347,11 +347,35 @@
       <input id="peakProminence" type="number" value="3.0" step="0.5">
     </label>
 
+    <label style="grid-column: 1 / -1; background:#1e2a1e; border:1px solid #2a5a2a; border-radius:8px; padding:10px; gap:8px">
+      <strong style="color:#6effa0">Rilevamento banda (band energy)</strong>
+      <span class="small">Rileva quando l'energia media in una banda di frequenze supera la soglia, indipendentemente dalla forma del picco.</span>
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap:10px; margin-top:6px">
+        <label>
+          Bande monitorate (es. 95-105, 45-55)
+          <input id="bandDefs" type="text" value="95-105, 45-55, 145-155" placeholder="min-max Hz separate da virgola">
+        </label>
+        <label>
+          Soglia energia banda dB
+          <input id="bandThresholdDb" type="number" value="-75" step="1">
+        </label>
+        <label>
+          Durata minima evento banda s
+          <input id="bandMinDuration" type="number" value="10" step="0.5">
+        </label>
+        <label>
+          Hold fine evento banda s
+          <input id="bandHoldSeconds" type="number" value="10" step="0.5">
+        </label>
+      </div>
+    </label>
+
     <button id="startBtn" class="primary">Start microfono</button>
     <button id="stopBtn" class="danger" disabled>Stop</button>
     <button id="exportWaterfallBtn" class="secondary" disabled>Esporta waterfall CSV</button>
     <button id="exportEventsBtn" class="secondary" disabled>Esporta eventi CSV</button>
     <button id="exportTargetBtn" class="secondary" disabled>Esporta frequenze target CSV</button>
+    <button id="exportBandBtn" class="secondary" disabled>Esporta eventi banda CSV</button>
     <button id="clearBtn" class="gray">Pulisci dati</button>
     <button id="nightModeBtn" class="night">🌙 Log notturno</button>
   </div>
@@ -366,6 +390,7 @@
     <div>Ultimo auto-save: <strong id="lastSaveText">-</strong></div>
     <div>Filtro biquad: <strong id="filterStatusText">-</strong></div>
     <div>Log target freq: <strong id="targetLogText">0 campioni</strong></div>
+    <div>Eventi banda: <strong id="bandEventsCountText">0</strong></div>
   </div>
 
   <div class="main">
@@ -462,6 +487,7 @@
     exportWaterfallBtn: document.getElementById("exportWaterfallBtn"),
     exportEventsBtn: document.getElementById("exportEventsBtn"),
     exportTargetBtn: document.getElementById("exportTargetBtn"),
+    exportBandBtn: document.getElementById("exportBandBtn"),
     clearBtn: document.getElementById("clearBtn"),
     nightModeBtn: document.getElementById("nightModeBtn"),
     nightOverlay: document.getElementById("nightOverlay"),
@@ -479,6 +505,7 @@
     eventsCountText: document.getElementById("eventsCountText"),
     lastSaveText: document.getElementById("lastSaveText"),
     targetLogText: document.getElementById("targetLogText"),
+    bandEventsCountText: document.getElementById("bandEventsCountText"),
     filterStatusText: document.getElementById("filterStatusText"),
 
     axisMin: document.getElementById("axisMin"),
@@ -517,6 +544,8 @@
   // ===== DATA STATE =====
   let waterfallRows = []; // circular buffer (max MAX_WATERFALL_ROWS)
   let targetRows = [];   // log of target frequencies, one entry per sample
+  let bandTracks = {};   // active band tracks keyed by band label e.g. "95-105"
+  let bandEvents = [];   // closed band events
   let sessionHeatmapData = []; // {time, avgDb, maxDb, peakFreq} per ogni campione
   let activeTracks = [];
   let closedEvents = [];
@@ -567,6 +596,41 @@
     const t = binExact - binLow;
     const db = freqData[binLow] * (1 - t) + freqData[binHigh] * t;
     return Number.isFinite(db) ? db : null;
+  }
+
+  function parseBandDefs() {
+    const raw = (document.getElementById("bandDefs").value || "").split(",");
+    const bands = [];
+    for (const s of raw) {
+      const m = s.trim().match(/^(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)$/);
+      if (m) {
+        const lo = parseFloat(m[1]);
+        const hi = parseFloat(m[2]);
+        if (lo < hi) bands.push({ label: `${lo}-${hi}`, lo, hi });
+      }
+    }
+    return bands;
+  }
+
+  function getBandEnergy(lo, hi) {
+    // Returns average dB across all bins in [lo, hi] Hz
+    if (!audioContext || !analyser || !freqData) return null;
+    const startBin = Math.max(0, Math.ceil(lo * analyser.fftSize / audioContext.sampleRate));
+    const endBin = Math.min(freqData.length - 1, Math.floor(hi * analyser.fftSize / audioContext.sampleRate));
+    if (endBin < startBin) return null;
+
+    // Convert dB to linear power, average, convert back
+    let sumPower = 0;
+    let count = 0;
+    for (let bin = startBin; bin <= endBin; bin++) {
+      const db = freqData[bin];
+      if (Number.isFinite(db)) {
+        sumPower += Math.pow(10, db / 10);
+        count++;
+      }
+    }
+    if (count === 0) return null;
+    return 10 * Math.log10(sumPower / count);
   }
 
   // ===== UTILITIES =====
@@ -733,6 +797,75 @@
 
     // Update tracks/events
     updateTracks(peaks, elapsedSec);
+
+    // ===== BAND ENERGY DETECTION =====
+    const bandDefs = parseBandDefs();
+    const bandThreshDb = Number(document.getElementById("bandThresholdDb").value);
+    const bandMinDur = Number(document.getElementById("bandMinDuration").value);
+    const bandHold = Number(document.getElementById("bandHoldSeconds").value);
+
+    for (const band of bandDefs) {
+      const energy = getBandEnergy(band.lo, band.hi);
+      if (energy === null) continue;
+
+      const isActive = energy >= bandThreshDb;
+
+      if (!bandTracks[band.label]) {
+        // No existing track for this band
+        if (isActive) {
+          bandTracks[band.label] = {
+            label: band.label,
+            lo: band.lo,
+            hi: band.hi,
+            start: elapsedSec,
+            lastSeen: elapsedSec,
+            sumDb: energy,
+            count: 1,
+            maxDb: energy
+          };
+        }
+      } else {
+        const tr = bandTracks[band.label];
+        if (isActive) {
+          tr.lastSeen = elapsedSec;
+          tr.sumDb += energy;
+          tr.count++;
+          tr.maxDb = Math.max(tr.maxDb, energy);
+        } else {
+          // Check if hold expired
+          if (elapsedSec - tr.lastSeen > bandHold) {
+            const duration = tr.lastSeen - tr.start;
+            if (duration >= bandMinDur) {
+              const startDateObj = dateFromElapsedSec(tr.start);
+              const endDateObj = dateFromElapsedSec(tr.lastSeen);
+              bandEvents.push({
+                label: tr.label,
+                lo: tr.lo,
+                hi: tr.hi,
+                startSec: tr.start,
+                endSec: tr.lastSeen,
+                durationSec: duration,
+                avgDb: tr.sumDb / tr.count,
+                maxDb: tr.maxDb,
+                samples: tr.count,
+                startLocalDateTime: localDateTimeString(startDateObj),
+                endLocalDateTime: localDateTimeString(endDateObj),
+                startLocalTime: localTimeHMS(startDateObj),
+                endLocalTime: localTimeHMS(endDateObj),
+                startIso: startDateObj ? startDateObj.toISOString() : "",
+                endIso: endDateObj ? endDateObj.toISOString() : ""
+              });
+            }
+            delete bandTracks[band.label];
+          }
+        }
+      }
+    }
+
+    els.bandEventsCountText.textContent = String(
+      bandEvents.length + Object.keys(bandTracks).length
+    );
+    els.exportBandBtn.disabled = bandEvents.length === 0 && Object.keys(bandTracks).length === 0;
 
     // Update button states
     els.exportWaterfallBtn.disabled = waterfallRows.length === 0;
@@ -1145,7 +1278,36 @@
       duration: ev.durationSec
     }));
 
-    const rows = [...activeVisible, ...closedVisible];
+    // Active band tracks
+    const activeBandRows = Object.values(bandTracks)
+      .filter(tr => tr.lastSeen - tr.start >= Number(document.getElementById("bandMinDuration").value))
+      .map(tr => {
+        const startDateObj = dateFromElapsedSec(tr.start);
+        const endDateObj = dateFromElapsedSec(elapsedSec);
+        return {
+          state: "banda attiva",
+          className: "event-active",
+          startTime: localTimeHM(startDateObj),
+          endTime: localTimeHM(endDateObj),
+          freq: `${tr.lo}-${tr.hi}`,
+          db: tr.sumDb / tr.count,
+          duration: Math.max(0, elapsedSec - tr.start)
+        };
+      });
+
+    // Closed band events
+    const closedBandRows = bandEvents.slice(-20).reverse().map(ev => ({
+      state: "banda",
+      className: "event-closed",
+      startTime: ev.startLocalTime,
+      endTime: ev.endLocalTime,
+      freq: ev.label,
+      db: ev.avgDb,
+      duration: ev.durationSec
+    }));
+
+    const rows = [...activeVisible, ...activeBandRows, ...closedVisible, ...closedBandRows];
+
     els.eventsTableBody.innerHTML = rows.map(r => `
       <tr>
         <td class="${r.className}">${r.state}</td>
@@ -1488,6 +1650,59 @@
     return s;
   }
 
+  function exportBandCsv() {
+    const allBandEvents = [...bandEvents];
+    // Include active tracks as open events
+    const elapsedSec = getElapsedSec();
+    for (const tr of Object.values(bandTracks)) {
+      const startDateObj = dateFromElapsedSec(tr.start);
+      const endDateObj = dateFromElapsedSec(elapsedSec);
+      allBandEvents.push({
+        label: tr.label,
+        lo: tr.lo,
+        hi: tr.hi,
+        startSec: tr.start,
+        endSec: elapsedSec,
+        durationSec: elapsedSec - tr.start,
+        avgDb: tr.sumDb / tr.count,
+        maxDb: tr.maxDb,
+        samples: tr.count,
+        startLocalDateTime: localDateTimeString(startDateObj),
+        endLocalDateTime: localDateTimeString(endDateObj),
+        startLocalTime: localTimeHMS(startDateObj),
+        endLocalTime: localTimeHMS(endDateObj),
+        startIso: startDateObj ? startDateObj.toISOString() : "",
+        endIso: endDateObj ? endDateObj.toISOString() : ""
+      });
+    }
+
+    if (allBandEvents.length === 0) return;
+
+    const header = [
+      "band_hz", "lo_hz", "hi_hz",
+      "start_local_datetime", "end_local_datetime",
+      "start_hh_mm_ss", "end_hh_mm_ss",
+      "start_iso", "end_iso",
+      "start_s", "end_s", "duration_s",
+      "avg_db", "max_db", "samples"
+    ];
+    const lines = [header.join(",")];
+
+    for (const ev of allBandEvents) {
+      lines.push([
+        ev.label, ev.lo, ev.hi,
+        ev.startLocalDateTime, ev.endLocalDateTime,
+        ev.startLocalTime, ev.endLocalTime,
+        ev.startIso, ev.endIso,
+        ev.startSec.toFixed(3), ev.endSec.toFixed(3), ev.durationSec.toFixed(3),
+        ev.avgDb.toFixed(3), ev.maxDb.toFixed(3), ev.samples
+      ].map(csvEscape).join(","));
+    }
+
+    const stamp = new Date().toISOString().replaceAll(":", "-");
+    downloadText(`band_events_${stamp}.csv`, lines.join("\n"));
+  }
+
   function exportTargetCsv() {
     if (targetRows.length === 0) return;
     const freqs = getTargetFreqs();
@@ -1591,6 +1806,8 @@
     waterfallRows = [];
     sessionHeatmapData = [];
     targetRows = [];
+    bandTracks = {};
+    bandEvents = [];
     activeTracks = [];
     closedEvents = [];
     nextTrackId = 1;
@@ -1605,7 +1822,9 @@
     els.exportWaterfallBtn.disabled = true;
     els.exportEventsBtn.disabled = true;
     els.exportTargetBtn.disabled = true;
+    els.exportBandBtn.disabled = true;
     els.targetLogText.textContent = "0 campioni";
+    els.bandEventsCountText.textContent = "0";
 
     // Clear storage
     localStorage.removeItem(STORAGE_KEY_EVENTS);
@@ -1620,6 +1839,7 @@
   els.exportWaterfallBtn.addEventListener("click", exportWaterfallCsv);
   els.exportEventsBtn.addEventListener("click", exportEventsCsv);
   els.exportTargetBtn.addEventListener("click", exportTargetCsv);
+  els.exportBandBtn.addEventListener("click", exportBandCsv);
   els.clearBtn.addEventListener("click", clearData);
   els.nightModeBtn.addEventListener("click", toggleNightMode);
   els.restoreYes.addEventListener("click", restoreSession);
@@ -1645,9 +1865,11 @@
   for (const id of [
     "minFreq", "maxFreq", "fftSize", "frameInterval",
     "minDb", "maxDb", "thresholdDb", "minEventDuration",
-    "matchToleranceHz", "holdSeconds", "peakProminence"
+    "matchToleranceHz", "holdSeconds", "peakProminence",
+    "bandDefs", "bandThresholdDb", "bandMinDuration", "bandHoldSeconds"
   ]) {
-    els[id].addEventListener("change", onSettingsChange);
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("change", onSettingsChange);
   }
 
   // ===== INIT =====
