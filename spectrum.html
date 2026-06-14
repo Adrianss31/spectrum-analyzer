@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Low Freq Analyzer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            min-height: 100vh;
+            padding: 10px;
+        }
+        h1 { font-size: 1.2em; text-align: center; margin-bottom: 10px; color: #00d4ff; }
+        .controls {
+            display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+            margin-bottom: 10px;
+        }
+        button {
+            padding: 8px 16px; border: none; border-radius: 6px;
+            font-size: 0.9em; cursor: pointer; font-weight: 600;
+            transition: all 0.2s;
+        }
+        button:hover { transform: scale(1.05); }
+        #btnStart { background: #00c853; color: #000; }
+        #btnStop { background: #ff1744; color: #fff; }
+        #btnExport { background: #ff9100; color: #000; }
+        #btnClear { background: #616161; color: #fff; }
+        button:disabled { opacity: 0.4; transform: none; cursor: not-allowed; }
+
+        .info-bar {
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 0.8em; color: #aaa; margin-bottom: 5px; padding: 0 5px;
+        }
+        .peak-info {
+            background: #2a2a4a; padding: 8px 12px; border-radius: 6px;
+            text-align: center; margin-bottom: 10px; font-size: 0.9em;
+        }
+        .peak-info .freq { color: #ff6b6b; font-size: 1.3em; font-weight: bold; }
+        .peak-info .db { color: #ffd93d; font-size: 1.1em; }
+
+        canvas {
+            width: 100%; border-radius: 6px;
+            background: #000; display: block; margin-bottom: 10px;
+        }
+
+        .section-label {
+            font-size: 0.75em; color: #888; text-transform: uppercase;
+            letter-spacing: 1px; margin-bottom: 4px; padding-left: 5px;
+        }
+
+        .settings {
+            background: #2a2a4a; padding: 12px; border-radius: 8px; margin-bottom: 10px;
+        }
+        .settings label { font-size: 0.8em; color: #aaa; display: block; margin-bottom: 4px; }
+        .settings input[type="range"] { width: 100%; margin-bottom: 8px; }
+        .settings .row { display: flex; gap: 10px; align-items: center; }
+        .settings .row label { flex: 1; }
+
+        #events-log {
+            background: #0d0d1a; border-radius: 6px; padding: 10px;
+            max-height: 200px; overflow-y: auto; font-size: 0.75em;
+            font-family: monospace; border: 1px solid #333;
+        }
+        #events-log .event {
+            padding: 3px 0; border-bottom: 1px solid #222;
+        }
+        #events-log .event-start { color: #ff6b6b; }
+        #events-log .event-end { color: #69db7c; }
+
+        .threshold-indicator {
+            display: inline-block; width: 10px; height: 10px;
+            border-radius: 50%; margin-right: 5px;
+        }
+        .active { background: #ff1744; animation: pulse 1s infinite; }
+        .inactive { background: #4caf50; }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+    </style>
+</head>
+<body>
+    <h1>🔊 Low Frequency Analyzer (30–150 Hz)</h1>
+
+    <div class="controls">
+        <button id="btnStart">▶ Start</button>
+        <button id="btnStop" disabled>⏹ Stop</button>
+        <button id="btnExport">📥 Export CSV</button>
+        <button id="btnClear">🗑 Clear</button>
+    </div>
+
+    <div class="peak-info">
+        <span class="threshold-indicator inactive" id="statusDot"></span>
+        Peak: <span class="freq" id="peakFreq">-- Hz</span> @ <span class="db" id="peakDb">-- dB</span>
+        <span id="statusText" style="margin-left:10px; font-size:0.8em; color:#aaa;">Idle</span>
+    </div>
+
+    <div class="settings">
+        <div class="row">
+            <label>
+                Min Freq: <span id="minFreqVal">30</span> Hz
+                <input type="range" id="minFreq" min="10" max="100" value="30">
+            </label>
+            <label>
+                Max Freq: <span id="maxFreqVal">150</span> Hz
+                <input type="range" id="maxFreq" min="80" max="500" value="150">
+            </label>
+        </div>
+        <label>
+            Detection Threshold: <span id="threshVal">-50</span> dB
+            <input type="range" id="threshold" min="-90" max="-10" value="-50">
+        </label>
+        <label>
+            Waterfall Speed (sec/line): <span id="speedVal">0.5</span>
+            <input type="range" id="speed" min="100" max="5000" value="500" step="100">
+        </label>
+    </div>
+
+    <div class="section-label">Spectrum (real-time)</div>
+    <canvas id="spectrumCanvas" height="150"></canvas>
+
+    <div class="section-label">Waterfall</div>
+    <canvas id="waterfallCanvas" height="300"></canvas>
+
+    <div class="section-label">Detected Events</div>
+    <div id="events-log"><em style="color:#555;">Events will appear here...</em></div>
+
+<script>
+// ===== CONFIG =====
+let CONFIG = {
+    fftSize: 8192,
+    minFreq: 30,
+    maxFreq: 150,
+    threshold: -50,
+    waterfallInterval: 500
+};
+
+// ===== STATE =====
+let audioCtx, analyser, source, stream;
+let isRunning = false;
+let animFrameId;
+let waterfallTimer;
+let waterfallData = []; // array of {time, bins[]}
+let events = []; // {startTime, endTime, peakFreq, peakDb}
+let currentEvent = null;
+let sampleRate = 44100;
+
+// ===== DOM =====
+const btnStart = document.getElementById('btnStart');
+const btnStop = document.getElementById('btnStop');
+const btnExport = document.getElementById('btnExport');
+const btnClear = document.getElementById('btnClear');
+const spectrumCanvas = document.getElementById('spectrumCanvas');
+const waterfallCanvas = document.getElementById('waterfallCanvas');
+const specCtx = spectrumCanvas.getContext('2d');
+const wfCtx = waterfallCanvas.getContext('2d');
+const peakFreqEl = document.getElementById('peakFreq');
+const peakDbEl = document.getElementById('peakDb');
+const statusDot = document.getElementById('statusDot');
+const statusText = document.getElementById('statusText');
+const eventsLog = document.getElementById('events-log');
+
+// ===== SETTINGS BINDINGS =====
+document.getElementById('minFreq').addEventListener('input', e => {
+    CONFIG.minFreq = +e.target.value;
+    document.getElementById('minFreqVal').textContent = CONFIG.minFreq;
+});
+document.getElementById('maxFreq').addEventListener('input', e => {
+    CONFIG.maxFreq = +e.target.value;
+    document.getElementById('maxFreqVal').textContent = CONFIG.maxFreq;
+});
+document.getElementById('threshold').addEventListener('input', e => {
+    CONFIG.threshold = +e.target.value;
+    document.getElementById('threshVal').textContent = CONFIG.threshold;
+});
+document.getElementById('speed').addEventListener('input', e => {
+    CONFIG.waterfallInterval = +e.target.value;
+    document.getElementById('speedVal').textContent = (CONFIG.waterfallInterval/1000).toFixed(1);
+    if (isRunning) {
+        clearInterval(waterfallTimer);
+        waterfallTimer = setInterval(captureWaterfallLine, CONFIG.waterfallInterval);
+    }
+});
+
+// ===== CANVAS RESIZE =====
+function resizeCanvases() {
+    const dpr = window.devicePixelRatio || 1;
+    [spectrumCanvas, waterfallCanvas].forEach(c => {
+        const rect = c.getBoundingClientRect();
+        c.width = rect.width * dpr;
+        c.height = rect.height * dpr;
+        c.getContext('2d').scale(dpr, dpr);
+    });
+}
+window.addEventListener('resize', resizeCanvases);
+resizeCanvases();
+
+// ===== AUDIO =====
+async function startAudio() {
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({ 
+            audio: { 
+                echoCancellation: false, 
+                noiseSuppression: false, 
+                autoGainControl: false 
+            } 
+        });
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        sampleRate = audioCtx.sampleRate;
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = CONFIG.fftSize;
+        analyser.smoothingTimeConstant = 0.3;
+        source = audioCtx.createMediaStreamSource(stream);
+        source.connect(analyser);
+
+        isRunning = true;
+        btnStart.disabled = true;
+        btnStop.disabled = false;
+        statusText.textContent = 'Recording...';
+
+        drawSpectrum();
+        waterfallTimer = setInterval(captureWaterfallLine, CONFIG.waterfallInterval);
+    } catch(err) {
+        alert('Microphone access error: ' + err.message);
+    }
+}
+
+function stopAudio() {
+    isRunning = false;
+    if (animFrameId) cancelAnimationFrame(animFrameId);
+    if (waterfallTimer) clearInterval(waterfallTimer);
+    if (source) source.disconnect();
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    if (audioCtx) audioCtx.close();
+
+    // Close any open event
+    if (currentEvent) {
+        currentEvent.endTime = new Date();
+        events.push({...currentEvent});
+        logEvent(currentEvent, 'end');
+        currentEvent = null;
+    }
+
+    btnStart.disabled = false;
+    btnStop.disabled = true;
+    statusDot.className = 'threshold-indicator inactive';
+    statusText.textContent = 'Stopped';
+}
+
+// ===== FREQUENCY HELPERS =====
+function freqToIndex(freq) {
+    return Math.round(freq / (sampleRate / CONFIG.fftSize));
+}
+
+function indexToFreq(index) {
+    return index * (sampleRate / CONFIG.fftSize);
+}
+
+function getFreqData() {
+    const bufLen = analyser.frequencyBinCount;
+    const data = new Float32Array(bufLen);
+    analyser.getFloatFrequencyData(data);
+    return data;
+}
+
+function getBinsInRange(data) {
+    const minIdx = freqToIndex(CONFIG.minFreq);
+    const maxIdx = freqToIndex(CONFIG.maxFreq);
+    return { data: data.slice(minIdx, maxIdx + 1), minIdx, maxIdx };
+}
+
+// ===== SPECTRUM DRAWING =====
+function drawSpectrum() {
+    if (!isRunning) return;
+    animFrameId = requestAnimationFrame(drawSpectrum);
+
+    const w = spectrumCanvas.getBoundingClientRect().width;
+    const h = spectrumCanvas.getBoundingClientRect().height;
+    const data = getFreqData();
+    const { data: rangeData, minIdx, maxIdx } = getBinsInRange(data);
+
+    specCtx.clearRect(0, 0, w, h);
+
+    // Background
+    specCtx.fillStyle = '#0a0a1a';
+    specCtx.fillRect(0, 0, w, h);
+
+    // Grid
+    specCtx.strokeStyle = '#333';
+    specCtx.lineWidth = 0.5;
+    specCtx.font = '10px monospace';
+    specCtx.fillStyle = '#666';
+
+    // Horizontal grid (dB)
+    for (let db = -100; db <= 0; db += 20) {
+        const y = h * (1 - (db + 100) / 100);
+        specCtx.beginPath(); specCtx.moveTo(30, y); specCtx.lineTo(w, y); specCtx.stroke();
+        specCtx.fillText(db + ' dB', 0, y + 3);
+    }
+
+    // Vertical grid (freq)
+    const freqStep = CONFIG.maxFreq - CONFIG.minFreq > 200 ? 50 : 20;
+    for (let f = Math.ceil(CONFIG.minFreq/freqStep)*freqStep; f <= CONFIG.maxFreq; f += freqStep) {
+        const x = 30 + (f - CONFIG.minFreq) / (CONFIG.maxFreq - CONFIG.minFreq) * (w - 40);
+        specCtx.beginPath(); specCtx.moveTo(x, 0); specCtx.lineTo(x, h); specCtx.stroke();
+        specCtx.fillText(f + 'Hz', x - 10, h - 3);
+    }
+
+    // Threshold line
+    const threshY = h * (1 - (CONFIG.threshold + 100) / 100);
+    specCtx.strokeStyle = '#ff174488';
+    specCtx.lineWidth = 1;
+    specCtx.setLineDash([5, 5]);
+    specCtx.beginPath(); specCtx.moveTo(30, threshY); specCtx.lineTo(w, threshY); specCtx.stroke();
+    specCtx.setLineDash([]);
+
+    // Spectrum bars + line
+    let peakVal = -Infinity, peakIdx = 0;
+
+    specCtx.beginPath();
+    specCtx.strokeStyle = '#00d4ff';
+    specCtx.lineWidth = 2;
+
+    for (let i = 0; i < rangeData.length; i++) {
+        const val = rangeData[i];
+        const x = 30 + (i / rangeData.length) * (w - 40);
+        const y = h * (1 - (val + 100) / 100);
+
+        if (i === 0) specCtx.moveTo(x, y);
+        else specCtx.lineTo(x, y);
+
+        if (val > peakVal) { peakVal = val; peakIdx = i; }
+    }
+    specCtx.stroke();
+
+    // Fill under curve
+    specCtx.lineTo(30 + (w - 40), h);
+    specCtx.lineTo(30, h);
+    specCtx.closePath();
+    specCtx.fillStyle = 'rgba(0, 212, 255, 0.1)';
+    specCtx.fill();
+
+    // Peak marker
+    const peakFreq = CONFIG.minFreq + (peakIdx / rangeData.length) * (CONFIG.maxFreq - CONFIG.minFreq);
+    const peakX = 30 + (peakIdx / rangeData.length) * (w - 40);
+    const peakY = h * (1 - (peakVal + 100) / 100);
+
+    specCtx.beginPath();
+    specCtx.arc(peakX, peakY, 5, 0, Math.PI * 2);
+    specCtx.fillStyle = '#ff6b6b';
+    specCtx.fill();
+
+    // Update peak display
+    peakFreqEl.textContent = peakFreq.toFixed(1) + ' Hz';
+    peakDbEl.textContent = peakVal.toFixed(1) + ' dB';
+
+    // Event detection
+    detectEvent(peakFreq, peakVal);
+}
+
+// ===== EVENT DETECTION =====
+function detectEvent(peakFreq, peakDb) {
+    const isAbove = peakDb > CONFIG.threshold;
+
+    if (isAbove && !currentEvent) {
+        // Start new event
+        currentEvent = {
+            startTime: new Date(),
+            endTime: null,
+            peakFreq: peakFreq,
+            peakDb: peakDb
+        };
+        statusDot.className = 'threshold-indicator active';
+        statusText.textContent = 'DETECTING...';
+        logEvent(currentEvent, 'start');
+    } else if (isAbove && currentEvent) {
+        // Update peak if stronger
+        if (peakDb > currentEvent.peakDb) {
+            currentEvent.peakDb = peakDb;
+            currentEvent.peakFreq = peakFreq;
+        }
+    } else if (!isAbove && currentEvent) {
+        // End event
+        currentEvent.endTime = new Date();
+        events.push({...currentEvent});
+        logEvent(currentEvent, 'end');
+        currentEvent = null;
+        statusDot.className = 'threshold-indicator inactive';
+        statusText.textContent = 'Recording...';
+    }
+}
+
+function logEvent(evt, type) {
+    const timeStr = (d) => d.toLocaleTimeString('it-IT', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    const div = document.createElement('div');
+    div.className = 'event event-' + type;
+
+    if (type === 'start') {
+        div.textContent = `▶ ${timeStr(evt.startTime)} | Started @ ${evt.peakFreq.toFixed(1)} Hz`;
+    } else {
+        const dur = ((evt.endTime - evt.startTime) / 1000).toFixed(1);
+        div.textContent = `⏹ ${timeStr(evt.endTime)} | Ended | Peak: ${evt.peakFreq.toFixed(1)} Hz / ${evt.peakDb.toFixed(1)} dB | Duration: ${dur}s`;
+    }
+
+    // Remove placeholder
+    if (eventsLog.querySelector('em')) eventsLog.innerHTML = '';
+    eventsLog.prepend(div);
+}
+
+// ===== WATERFALL =====
+function captureWaterfallLine() {
+    if (!isRunning) return;
+    const data = getFreqData();
+    const { data: rangeData } = getBinsInRange(data);
+
+    waterfallData.push({
+        time: new Date(),
+        bins: Array.from(rangeData)
+    });
+
+    drawWaterfall();
+}
+
+function drawWaterfall() {
+    const w = waterfallCanvas.getBoundingClientRect().width;
+    const h = waterfallCanvas.getBoundingClientRect().height;
+
+    wfCtx.clearRect(0, 0, w, h);
+    wfCtx.fillStyle = '#000';
+    wfCtx.fillRect(0, 0, w, h);
+
+    const maxLines = Math.floor(h / 2); // 2px per line
+    const lines = waterfallData.slice(-maxLines);
+    const lineHeight = h / maxLines;
+
+    for (let row = 0; row < lines.length; row++) {
+        const bins = lines[row].bins;
+        const binWidth = w / bins.length;
+
+        for (let col = 0; col < bins.length; col++) {
+            const val = bins[col];
+            const norm = Math.max(0, Math.min(1, (val + 100) / 80)); // -100 to -20 range
+            const color = waterfallColor(norm);
+            wfCtx.fillStyle = color;
+            wfCtx.fillRect(col * binWidth, h - (row + 1) * lineHeight, binWidth + 1, lineHeight + 1);
+        }
+    }
+
+    // Freq labels on waterfall
+    wfCtx.font = '10px monospace';
+    wfCtx.fillStyle = 'rgba(255,255,255,0.6)';
+    const freqStep = CONFIG.maxFreq - CONFIG.minFreq > 200 ? 50 : 20;
+    for (let f = Math.ceil(CONFIG.minFreq/freqStep)*freqStep; f <= CONFIG.maxFreq; f += freqStep) {
+        const x = (f - CONFIG.minFreq) / (CONFIG.maxFreq - CONFIG.minFreq) * w;
+        wfCtx.fillText(f + 'Hz', x - 10, h - 3);
+    }
+
+    // Time labels
+    if (lines.length > 0) {
+        const newest = lines[lines.length - 1].time;
+        const oldest = lines[0].time;
+        wfCtx.fillStyle = 'rgba(255,255,255,0.5)';
+        wfCtx.fillText(newest.toLocaleTimeString('it-IT'), w - 60, 12);
+        wfCtx.fillText(oldest.toLocaleTimeString('it-IT'), w - 60, h - 15);
+    }
+}
+
+function waterfallColor(norm) {
+    // Dark purple -> magenta -> yellow -> white
+    if (norm < 0.25) {
+        const t = norm / 0.25;
+        return `rgb(${Math.round(t*80)}, 0, ${Math.round(t*80)})`;
+    } else if (norm < 0.5) {
+        const t = (norm - 0.25) / 0.25;
+        return `rgb(${Math.round(80 + t*175)}, 0, ${Math.round(80 + t*80)})`;
+    } else if (norm < 0.75) {
+        const t = (norm - 0.5) / 0.25;
+        return `rgb(255, ${Math.round(t*200)}, ${Math.round(160 - t*160)})`;
+    } else {
+        const t = (norm - 0.75) / 0.25;
+        return `rgb(255, ${Math.round(200 + t*55)}, ${Math.round(t*255)})`;
+    }
+}
+
+// ===== EXPORT CSV =====
+function exportCSV() {
+    if (events.length === 0 && waterfallData.length === 0) {
+        alert('No data to export.');
+        return;
+    }
+
+    let csv = '';
+
+    // Events sheet
+    csv += 'EVENTS\n';
+    csv += 'Start Time,End Time,Duration (s),Peak Frequency (Hz),Peak Level (dB)\n';
+    events.forEach(e => {
+        const dur = e.endTime ? ((e.endTime - e.startTime) / 1000).toFixed(1) : 'ongoing';
+        csv += `${e.startTime.toISOString()},${e.endTime ? e.endTime.toISOString() : 'ongoing'},${dur},${e.peakFreq.toFixed(1)},${e.peakDb.toFixed(1)}\n`;
+    });
+
+    csv += '\n\nWATERFALL RAW DATA\n';
+    // Header: Time, then freq bins
+    const numBins = waterfallData.length > 0 ? waterfallData[0].bins.length : 0;
+    let header = 'Time';
+    if (numBins > 0) {
+        const freqRes = (CONFIG.maxFreq - CONFIG.minFreq) / numBins;
+        for (let i = 0; i < numBins; i++) {
+            header += `,${(CONFIG.minFreq + i * freqRes).toFixed(1)}Hz`;
+        }
+    }
+    csv += header + '\n';
+
+    waterfallData.forEach(row => {
+        csv += row.time.toISOString();
+        row.bins.forEach(b => csv += `,${b.toFixed(1)}`);
+        csv += '\n';
+    });
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `low_freq_${new Date().toISOString().slice(0,16).replace(/:/g,'-')}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+// ===== CLEAR =====
+function clearData() {
+    if (confirm('Clear all recorded data?')) {
+        waterfallData = [];
+        events = [];
+        currentEvent = null;
+        eventsLog.innerHTML = '<em style="color:#555;">Events will appear here...</em>';
+        drawWaterfall();
+    }
+}
+
+// ===== EVENT LISTENERS =====
+btnStart.addEventListener('click', startAudio);
+btnStop.addEventListener('click', stopAudio);
+btnExport.addEventListener('click', exportCSV);
+btnClear.addEventListener('click', clearData);
+</script>
+</body>
+</html>
