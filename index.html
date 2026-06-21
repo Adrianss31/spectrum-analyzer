@@ -261,6 +261,9 @@ html,body{height:100%;overflow:hidden;font-family:system-ui,-apple-system,sans-s
     <button class="btn warning" id="btn-force-event" style="display:none;width:100%;font-size:14px;padding:12px">
       ⚡ Il rumore c'è già — registra da adesso e aspetta la fine
     </button>
+    <button class="btn" id="btn-blackout" style="display:none;width:100%;font-size:14px;padding:12px;background:var(--bg2);color:var(--text2)">
+      🌑 Schermata nera (tieni il telefono giù)
+    </button>
     <div style="font-size:11px;color:#333;text-align:center">Banda e soglie di trigger: Impostazioni</div>
   </div>
 </div>
@@ -812,10 +815,14 @@ function forceEventStart(){
     B:    bandLevelDb(fd,bands.B.low,    bands.B.high,    SR,fftSz),
     broad:bandLevelDb(fd,bands.broad.low,bands.broad.high,SR,fftSz)
   };
-  BAND_KEYS.forEach(k=>{
+  // Forza solo le bande elevated rispetto al minimo. Se tutte entro 6 dB, forza tutte.
+  const minLvl=Math.min(...Object.values(lvls));
+  const ELEV_DB=Math.max(cfg.onDb,6);
+  const toForce=BAND_KEYS.filter(k=>lvls[k]>=minLvl+ELEV_DB);
+  const targets=toForce.length>0 ? toForce : BAND_KEYS;
+  targets.forEach(k=>{
     const sm=sms[k]; if(!sm) return;
     sm.inWarmup=false; sm.warmupLeft=0;
-    // Setta entrambe le baseline sotto il livello attuale così thrOff è ben sotto il silenzio
     const forcedBase=lvls[k]-(cfg.onDb*2);
     sm.baseline=forcedBase;
     sm.slowBaseline=forcedBase;
@@ -823,9 +830,17 @@ function forceEventStart(){
     sm.evStart=nowSec; sm.riseStart=nowSec; sm.peak=lvls[k];
     setBandUI(k,'● FORZATO','var(--red)','—');
   });
-  document.getElementById('btn-force-event').textContent='✓ Evento in corso — aspetto la fine';
+  // Le bande non forzate escono solo dal warmup e continuano in rilevamento normale
+  BAND_KEYS.filter(k=>!targets.includes(k)).forEach(k=>{
+    const sm=sms[k]; if(!sm||!sm.inWarmup) return;
+    sm.inWarmup=false; sm.warmupLeft=0;
+    sm.slowBaseline=sm.baseline;
+  });
+  const names={A:'Banda A (50Hz)',B:'Banda B (100Hz)',broad:'Broadband'};
+  const forced=targets.map(k=>names[k]).join(', ');
+  document.getElementById('btn-force-event').textContent=`✓ Evento in corso su: ${forced}`;
   document.getElementById('btn-force-event').disabled=true;
-  showToast('Evento avviato su tutte le bande — rileverò quando finisce.',3500);
+  showToast(`Evento forzato su: ${forced}`,3500);
 }
 
 function saveEvent(startT, endT, peak, band){
@@ -939,6 +954,7 @@ async function startNight(){
   document.getElementById('night-stats').style.display='grid';
   document.getElementById('night-mini-canvas').style.display='block';
   document.getElementById('btn-force-event').style.display='';
+  document.getElementById('btn-blackout').style.display='';
   document.getElementById('n-events').textContent='0';
   BAND_KEYS.forEach(k=>setBandUI(k,'—','','—'));
   await keepAwake();
@@ -970,6 +986,8 @@ async function stopNight(){
   const bfe=document.getElementById('btn-force-event');
   bfe.style.display='none'; bfe.disabled=false;
   bfe.textContent='⚡ Il rumore c\'è già — registra da adesso e aspetta la fine';
+  document.getElementById('btn-blackout').style.display='none';
+  document.getElementById('blackout').style.display='none';
   showToast('Sessione salvata ✓');
 }
 
@@ -1219,6 +1237,23 @@ async function init(){
   document.getElementById('btn-night-start').addEventListener('click',startNight);
   document.getElementById('btn-night-stop').addEventListener('click',stopNight);
   document.getElementById('btn-force-event').addEventListener('click',forceEventStart);
+  document.getElementById('btn-blackout').addEventListener('click',()=>{
+    document.getElementById('blackout').style.display='';
+  });
+  let blackoutTap=false, blackoutTimer=null;
+  document.getElementById('blackout').addEventListener('click',()=>{
+    const hint=document.getElementById('blackout-hint');
+    if(blackoutTap){
+      clearTimeout(blackoutTimer);
+      blackoutTap=false;
+      hint.style.display='none';
+      document.getElementById('blackout').style.display='none';
+    } else {
+      blackoutTap=true;
+      hint.style.display='';
+      blackoutTimer=setTimeout(()=>{ blackoutTap=false; hint.style.display='none'; },2000);
+    }
+  });
 
   // Summary controls
   document.getElementById('btn-refresh').addEventListener('click',loadSessions);
@@ -1285,5 +1320,10 @@ async function init(){
 
 init();
 </script>
+<div id="blackout" style="display:none;position:fixed;inset:0;background:#000;z-index:9999;touch-action:none">
+  <div id="blackout-hint" style="display:none;position:absolute;bottom:40px;width:100%;text-align:center;color:#222;font-size:13px;letter-spacing:.05em">
+    tocca ancora per uscire
+  </div>
+</div>
 </body>
 </html>
