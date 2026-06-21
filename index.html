@@ -85,10 +85,7 @@ html,body{height:100%;overflow:hidden;font-family:system-ui,-apple-system,sans-s
 @keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
 .night-panel{background:rgba(255,255,255,.04);border-radius:10px;padding:10px 12px;width:100%}
 .night-panel-label{font-size:10px;color:#555;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px}
-.night-wf-wrap{display:flex;gap:5px}
-.wf-yaxis{display:flex;flex-direction:column;justify-content:space-between;font-size:9px;color:#555;font-family:monospace;width:22px;text-align:right;padding:2px 0}
-#night-wf-canvas{flex:1;border-radius:4px;display:block}
-.wf-xaxis{display:flex;justify-content:space-between;font-size:9px;color:#555;font-family:monospace;padding-left:27px;margin-top:3px}
+#night-wf-canvas{width:100%;border-radius:4px;display:block}
 .presence-strip{display:flex;align-items:center;gap:8px;margin-bottom:6px}
 .presence-strip:last-child{margin-bottom:0}
 .ps-label{font-size:10px;font-family:monospace;color:#555;width:46px;flex:none}
@@ -239,11 +236,7 @@ html,body{height:100%;overflow:hidden;font-family:system-ui,-apple-system,sans-s
     <!-- Waterfall heatmap freq × tempo -->
     <div id="night-wf-panel" class="night-panel" style="display:none">
       <div class="night-panel-label">Waterfall · 20–200 Hz · tutta la notte</div>
-      <div class="night-wf-wrap">
-        <div class="wf-yaxis"><span>200</span><span>100</span><span>50</span><span>20</span></div>
-        <canvas id="night-wf-canvas" height="110"></canvas>
-      </div>
-      <div class="wf-xaxis" id="wf-xaxis"><span>—</span></div>
+      <canvas id="night-wf-canvas" height="64"></canvas>
     </div>
 
     <!-- Strisce presenza per banda (Gantt) -->
@@ -285,9 +278,6 @@ html,body{height:100%;overflow:hidden;font-family:system-ui,-apple-system,sans-s
       <button class="btn primary" id="btn-night-start" style="font-size:15px;padding:14px 28px">🌙 Avvia Log Notturno</button>
       <button class="btn danger" id="btn-night-stop" style="font-size:15px;padding:14px 28px;display:none">⬛ Stop</button>
     </div>
-    <button class="btn warning" id="btn-force-event" style="display:none;width:100%;font-size:14px;padding:12px">
-      ⚡ Il rumore c'è già — registra da adesso e aspetta la fine
-    </button>
     <button class="btn" id="btn-blackout" style="display:none;width:100%;font-size:14px;padding:12px;background:var(--bg2);color:var(--text2)">
       🌑 Schermata nera (tieni il telefono giù)
     </button>
@@ -340,12 +330,11 @@ html,body{height:100%;overflow:hidden;font-family:system-ui,-apple-system,sans-s
   </div>
   <div class="settings-section">
     <h3>Rilevamento eventi</h3>
-    <div class="setting-row"><div class="s-label">Banda trigger</div><div class="setting-ctrl"><select id="s-trig"><option value="A">A</option><option value="B">B</option><option value="broad">Larga</option></select></div></div>
-    <div class="setting-row"><div class="s-label">Soglia ON (dB sopra baseline)</div><div class="setting-ctrl"><input type="number" id="s-on" min="1" max="30" step="0.5"></div></div>
-    <div class="setting-row"><div class="s-label">Soglia OFF (dB sopra baseline)</div><div class="setting-ctrl"><input type="number" id="s-off" min="0.5" max="25" step="0.5"></div></div>
+    <div class="setting-row"><div class="s-label">Soglia ON (dBFS — evento inizia)</div><div class="setting-ctrl"><input type="number" id="s-on" min="-120" max="-10" step="1"></div></div>
+    <div class="setting-row"><div class="s-label">Soglia OFF (dBFS — evento finisce)</div><div class="setting-ctrl"><input type="number" id="s-off" min="-120" max="-10" step="1"></div></div>
     <div class="setting-row"><div class="s-label">Durata min. ON (s)</div><div class="setting-ctrl"><input type="number" id="s-minon" min="1" max="120"></div></div>
     <div class="setting-row"><div class="s-label">Durata min. OFF (s)</div><div class="setting-ctrl"><input type="number" id="s-minoff" min="1" max="300"></div></div>
-    <div class="setting-row"><div class="s-label">Alpha baseline EMA</div><div class="setting-ctrl"><input type="number" id="s-alpha" min="0.001" max="0.1" step="0.001"></div></div>
+    <div style="padding:8px 0;font-size:11px;color:var(--text3);line-height:1.5">Vai nella tab Live per misurare il livello del rumore e impostare la soglia giusta. La soglia OFF va tenuta qualche dB sotto la ON.</div>
   </div>
   <div class="settings-section">
     <h3>Analisi audio</h3>
@@ -414,8 +403,7 @@ const DEFAULTS={
   bandACenter:50, bandAWidth:5,
   bandBCenter:100, bandBWidth:5,
   broadLow:20, broadHigh:200,
-  triggerBand:'B',
-  onDb:6, offDb:3, minOnS:10, minOffS:15, baselineAlpha:0.01,
+  thrOnDb:-55, thrOffDb:-62, minOnS:10, minOffS:15,
   fftSize:8192, smoothLive:0.6, smoothLog:0.2,
   specXMax:250, sonification:false
 };
@@ -731,15 +719,10 @@ const BAND_KEYS=['A','B','broad'];
 let sms={};
 let allEvents=[];
 
-const SLOW_ALPHA=0.0002; // tau≈83 min @1sps
-
 function createSM(band){
-  return{band,state:SM.IDLE,baseline:-60,slowBaseline:-60,
-         riseStart:null,fallStart:null,
-         evStart:null,peak:-Infinity,inWarmup:true,warmupLeft:10};
+  return{band,state:SM.IDLE,riseStart:null,fallStart:null,evStart:null,peak:-Infinity};
 }
 
-// No-op: lo stato è ora letto da updateNowRow() ogni frame
 function setBandUI(band, stateLabel, stateColor, prog){}
 function updateBandLevel(band, level){}
 
@@ -777,42 +760,49 @@ function findDominantHz(fd, SR, fftSz){
 }
 
 function drawWaterfall(){
-  const cv=document.getElementById('night-wf-canvas'); if(!cv||!specBuckets.length) return;
+  const cv=document.getElementById('night-wf-canvas'); if(!cv) return;
   const dpr=window.devicePixelRatio||1;
-  const W=cv.clientWidth||280, H=cv.clientHeight||110;
+  const W=cv.clientWidth||300, H=cv.clientHeight||64;
   cv.width=W*dpr; cv.height=H*dpr;
   const ctx=cv.getContext('2d'); ctx.scale(dpr,dpr);
-  ctx.clearRect(0,0,W,H);
+  // Fondo nero
+  ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
+  if(!specBuckets.length) return;
   const n=specBuckets.length;
-  const colW=Math.max(1,W/Math.max(n,60));
-  const dMin=-90, dMax=-20;
+  // Usa almeno 60 colonne di larghezza per non avere colonne larghe 1px all'inizio
+  const cols=Math.max(n,60);
+  const colW=W/cols;
+  // Range dinamico: adatta min/max alla sessione corrente
+  let dMin=-90, dMax=-25;
+  specBuckets.forEach(bk=>bk.bins.forEach(v=>{ if(v>dMax) dMax=v; if(v<dMin&&v>-120) dMin=v; }));
+  dMax=Math.min(-10,dMax+3); dMin=Math.max(-110,dMin-3);
   specBuckets.forEach((bucket,xi)=>{
-    const x=xi/Math.max(n,60)*W;
+    const x=(xi/cols)*W;
     for(let b=0;b<WF_NBINS;b++){
-      // b=0 → lowest freq → bottom of canvas
       const y=H-(b+1)/WF_NBINS*H;
       const norm=Math.max(0,Math.min(1,(bucket.bins[b]-dMin)/(dMax-dMin)));
       ctx.fillStyle=wfColor(norm);
       ctx.fillRect(Math.floor(x),Math.floor(y),Math.ceil(colW)+1,Math.ceil(H/WF_NBINS)+1);
     }
   });
-  // Linee guida a 50 e 100 Hz
+  // Linee guida con etichetta Hz embedded
   const fy=f=>H-(f-WF_FMIN)/(WF_FMAX-WF_FMIN)*H;
-  ctx.setLineDash([3,3]); ctx.lineWidth=1;
-  [50,100].forEach(f=>{
+  ctx.setLineDash([2,3]); ctx.lineWidth=1;
+  ctx.font=`${9*dpr/dpr}px monospace`; // 9px fisici
+  [{f:50,color:'rgba(255,170,0,.5)'},{f:100,color:'rgba(0,212,170,.5)'}].forEach(({f,color})=>{
     const y=fy(f);
-    ctx.strokeStyle='rgba(255,255,255,.22)';
+    ctx.strokeStyle=color;
     ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
-    ctx.fillStyle='rgba(255,255,255,.45)'; ctx.font='8px monospace';
-    ctx.fillText(f+'Hz',3,y-2);
+    ctx.fillStyle=color; ctx.fillText(f+'Hz',3,y-2);
   });
   ctx.setLineDash([]);
-  // Asse X
+  // Etichette temporali in basso: inizio, ora
   if(nightSession){
-    const start=new Date(nightSession.startedAt), now=new Date();
-    const mid=new Date((nightSession.startedAt+Date.now())/2);
-    const ax=document.getElementById('wf-xaxis');
-    if(ax) ax.innerHTML=`<span>${fmtTime(start)}</span><span>${fmtTime(mid)}</span><span>ora</span>`;
+    ctx.fillStyle='rgba(255,255,255,.35)'; ctx.font='8px monospace';
+    ctx.fillText(fmtTime(nightSession.startedAt),3,H-3);
+    const nowLbl='ora';
+    const tw=ctx.measureText(nowLbl).width;
+    ctx.fillText(nowLbl,W-tw-3,H-3);
   }
 }
 
@@ -844,30 +834,25 @@ function updateNowRow(fd, SR, fftSz, levels){
   const domHz=findDominantHz(fd,SR,fftSz);
   document.getElementById('now-hz').textContent=domHz.toFixed(1);
   document.getElementById('now-hz-unit').textContent=' Hz';
-  // Stato globale
   const actKeys=BAND_KEYS.filter(k=>sms[k]&&sms[k].state===SM.ACTIVE);
-  const warmup=BAND_KEYS.some(k=>sms[k]&&sms[k].inWarmup);
   const statusEl=document.getElementById('now-status');
   if(actKeys.length>0){
     const best=actKeys.reduce((acc,k)=>{ const d=Date.now()/1000-(sms[k].evStart||0); return d>acc.d?{k,d}:acc; },{k:null,d:-1});
     statusEl.textContent='● Segnale presente · '+fmtDur(Math.floor(Date.now()/1000-(sms[best.k].evStart||0)));
     statusEl.style.color='var(--red)';
   } else {
-    statusEl.textContent=warmup?'Calibrazione…':'Silenzio';
+    statusEl.textContent='Silenzio';
     statusEl.style.color='#555';
   }
-  // Mini-meter per banda
+  const thrPct=Math.max(0,Math.min(100,(cfg.thrOnDb+120)/120*100));
   BAND_KEYS.forEach(k=>{
     const sm=sms[k]; if(!sm) return;
     const lvl=levels[k];
     const pct=Math.max(0,Math.min(100,(lvl+120)/120*100));
-    const thrOn=sm.slowBaseline+cfg.onDb;
-    const thrPct=Math.max(0,Math.min(100,(thrOn+120)/120*100));
     document.getElementById('nm-fill-'+k).style.width=pct+'%';
     document.getElementById('nm-thr-'+k).style.left=thrPct+'%';
     const active=sm.state===SM.ACTIVE;
-    const stat=sm.inWarmup?('calibr.'+sm.warmupLeft+'s'):
-      active?('●'+fmtDur(Math.floor(Date.now()/1000-(sm.evStart||0)))):
+    const stat=active?('●'+fmtDur(Math.floor(Date.now()/1000-(sm.evStart||0)))):
       sm.state===SM.RISING?'↑ rise':sm.state===SM.FALLING?'↓ fine':'silenzio';
     const stEl=document.getElementById('nm-status-'+k);
     stEl.textContent=stat;
@@ -876,93 +861,28 @@ function updateNowRow(fd, SR, fftSz, levels){
 }
 
 function smStepBand(sm, level, nowSec){
-  const bid=sm.band;
-  if(sm.inWarmup){
-    sm.baseline=sm.baseline*(1-0.15)+level*0.15;
-    sm.warmupLeft--;
-    setBandUI(bid,'CALIBR.','var(--text2)',`${sm.warmupLeft}s`);
-    if(sm.warmupLeft<=0){
-      sm.inWarmup=false;
-      sm.slowBaseline=sm.baseline; // seed slow baseline dal warmup
-      setBandUI(bid,'IDLE','','—');
-    }
-    return;
-  }
-  // thrOn/thrOff usano slow baseline: non insegue il rumore durante ACTIVE
-  const thrOn=sm.slowBaseline+cfg.onDb, thrOff=sm.slowBaseline+cfg.offDb;
-  if(sm.state!==SM.ACTIVE){
-    sm.baseline=sm.baseline*(1-cfg.baselineAlpha)+level*cfg.baselineAlpha;
-    sm.slowBaseline=sm.slowBaseline*(1-SLOW_ALPHA)+level*SLOW_ALPHA;
-  }
-  const prev=sm.state;
   switch(sm.state){
     case SM.IDLE:
-      setBandUI(bid,'IDLE','',`↑${thrOn.toFixed(0)}dB`);
-      if(level>thrOn){sm.state=SM.RISING; sm.riseStart=nowSec;}
+      if(level>=cfg.thrOnDb){sm.state=SM.RISING; sm.riseStart=nowSec;}
       break;
-    case SM.RISING:{
-      const el=nowSec-sm.riseStart;
-      setBandUI(bid,'↑ RISE','var(--amber)',`${Math.floor(el)}/${cfg.minOnS}s`);
-      if(level<=thrOn){sm.state=SM.IDLE;}
-      else if(el>=cfg.minOnS){sm.state=SM.ACTIVE; sm.evStart=sm.riseStart; sm.peak=level;}
+    case SM.RISING:
+      if(level<cfg.thrOnDb){sm.state=SM.IDLE;}
+      else if(nowSec-sm.riseStart>=cfg.minOnS){sm.state=SM.ACTIVE; sm.evStart=sm.riseStart; sm.peak=level;}
       break;
-    }
     case SM.ACTIVE:
       if(level>sm.peak) sm.peak=level;
-      setBandUI(bid,'● ATTIVO','var(--red)',fmtDur(Math.floor(nowSec-sm.evStart)));
-      if(level<thrOff){sm.state=SM.FALLING; sm.fallStart=nowSec;}
+      if(level<cfg.thrOffDb){sm.state=SM.FALLING; sm.fallStart=nowSec;}
       break;
-    case SM.FALLING:{
-      const el=nowSec-sm.fallStart;
-      const rem=Math.max(0,Math.floor(cfg.minOffS-el));
-      setBandUI(bid,'↓ FINE','#88aaff',`fine ${rem}s`);
-      if(level>=thrOff){sm.state=SM.ACTIVE;}
-      else if(el>=cfg.minOffS){
-        saveEvent(sm.evStart,sm.fallStart,sm.peak,bid);
+    case SM.FALLING:
+      if(level>=cfg.thrOffDb){sm.state=SM.ACTIVE;}
+      else if(nowSec-sm.fallStart>=cfg.minOffS){
+        saveEvent(sm.evStart,sm.fallStart,sm.peak,sm.band);
         sm.peak=-Infinity; sm.evStart=null; sm.state=SM.IDLE;
       }
       break;
-    }
   }
 }
 
-function forceEventStart(){
-  if(!nightRunning||!audioCtx||!analyser) return;
-  const fd=getFreqData(); if(!fd) return;
-  const SR=audioCtx.sampleRate, fftSz=analyser.fftSize;
-  const bands=getBands(), nowSec=Date.now()/1000;
-  const lvls={
-    A:    bandLevelDb(fd,bands.A.low,    bands.A.high,    SR,fftSz),
-    B:    bandLevelDb(fd,bands.B.low,    bands.B.high,    SR,fftSz),
-    broad:bandLevelDb(fd,bands.broad.low,bands.broad.high,SR,fftSz)
-  };
-  // Forza solo le bande elevated rispetto al minimo. Se tutte entro 6 dB, forza tutte.
-  const minLvl=Math.min(...Object.values(lvls));
-  const ELEV_DB=Math.max(cfg.onDb,6);
-  const toForce=BAND_KEYS.filter(k=>lvls[k]>=minLvl+ELEV_DB);
-  const targets=toForce.length>0 ? toForce : BAND_KEYS;
-  targets.forEach(k=>{
-    const sm=sms[k]; if(!sm) return;
-    sm.inWarmup=false; sm.warmupLeft=0;
-    const forcedBase=lvls[k]-(cfg.onDb*2);
-    sm.baseline=forcedBase;
-    sm.slowBaseline=forcedBase;
-    sm.state=SM.ACTIVE;
-    sm.evStart=nowSec; sm.riseStart=nowSec; sm.peak=lvls[k];
-    setBandUI(k,'● FORZATO','var(--red)','—');
-  });
-  // Le bande non forzate escono solo dal warmup e continuano in rilevamento normale
-  BAND_KEYS.filter(k=>!targets.includes(k)).forEach(k=>{
-    const sm=sms[k]; if(!sm||!sm.inWarmup) return;
-    sm.inWarmup=false; sm.warmupLeft=0;
-    sm.slowBaseline=sm.baseline;
-  });
-  const names={A:'Banda A (50Hz)',B:'Banda B (100Hz)',broad:'Broadband'};
-  const forced=targets.map(k=>names[k]).join(', ');
-  document.getElementById('btn-force-event').textContent=`✓ Evento in corso su: ${forced}`;
-  document.getElementById('btn-force-event').disabled=true;
-  showToast(`Evento forzato su: ${forced}`,3500);
-}
 
 function saveEvent(startT, endT, peak, band){
   const ev={id:uuid(),sessionId:nightSession.id,band,
@@ -1058,8 +978,8 @@ async function startNight(){
     label:`Notte ${new Date().toLocaleDateString('it-IT')}`,
     startedAt:Date.now(), endedAt:null,
     sampleRate:audioCtx.sampleRate, fftSize:analyser.fftSize,
-    bands:getBands(), triggerBand:cfg.triggerBand,
-    thresholds:{onDb:cfg.onDb,offDb:cfg.offDb,minOnS:cfg.minOnS,minOffS:cfg.minOffS},
+    bands:getBands(),
+    thresholds:{thrOnDb:cfg.thrOnDb,thrOffDb:cfg.thrOffDb,minOnS:cfg.minOnS,minOffS:cfg.minOffS},
     eventsCount:0
   };
   await dbPut('sessions',nightSession);
@@ -1077,7 +997,6 @@ async function startNight(){
   document.getElementById('night-wf-panel').style.display='';
   document.getElementById('night-strips-panel').style.display='';
   document.getElementById('night-now-panel').style.display='';
-  document.getElementById('btn-force-event').style.display='';
   document.getElementById('btn-blackout').style.display='';
   document.getElementById('n-events').textContent='0';
   await keepAwake();
@@ -1107,9 +1026,6 @@ async function stopNight(){
   document.getElementById('night-wf-panel').style.display='none';
   document.getElementById('night-strips-panel').style.display='none';
   document.getElementById('night-now-panel').style.display='none';
-  const bfe=document.getElementById('btn-force-event');
-  bfe.style.display='none'; bfe.disabled=false;
-  bfe.textContent='⚡ Il rumore c\'è già — registra da adesso e aspetta la fine';
   document.getElementById('btn-blackout').style.display='none';
   document.getElementById('blackout').style.display='none';
   showToast('Sessione salvata ✓');
@@ -1190,7 +1106,7 @@ function drawTimeline(session,samples,events){
   if(samples.length<2){ ctx.restore(); return; }
   const tMin=samples[0].t, tMax=samples[samples.length-1].t, tSpan=Math.max(1,tMax-tMin);
   const dbMin=-120, dbMax=0;
-  const key=cfg.triggerBand==='broad'?'broad':cfg.triggerBand.toLowerCase();
+  const key='b'; // usa banda B (100 Hz) come riferimento nel timeline
   // Event regions
   events.forEach(ev=>{
     const x0=(ev.startT-tMin)/tSpan*W, x1=(ev.endT-tMin)/tSpan*W;
@@ -1246,12 +1162,10 @@ function populateSettings(){
   document.getElementById('s-bw').value=cfg.bandBWidth;
   document.getElementById('s-bl').value=cfg.broadLow;
   document.getElementById('s-bh').value=cfg.broadHigh;
-  document.getElementById('s-trig').value=cfg.triggerBand;
-  document.getElementById('s-on').value=cfg.onDb;
-  document.getElementById('s-off').value=cfg.offDb;
+  document.getElementById('s-on').value=cfg.thrOnDb;
+  document.getElementById('s-off').value=cfg.thrOffDb;
   document.getElementById('s-minon').value=cfg.minOnS;
   document.getElementById('s-minoff').value=cfg.minOffS;
-  document.getElementById('s-alpha').value=cfg.baselineAlpha;
   document.getElementById('s-fft').value=cfg.fftSize;
   document.getElementById('s-sl').value=cfg.smoothLive;
   document.getElementById('s-slog').value=cfg.smoothLog;
@@ -1265,12 +1179,10 @@ function collectSettings(){
   cfg.bandBWidth=+document.getElementById('s-bw').value;
   cfg.broadLow=+document.getElementById('s-bl').value;
   cfg.broadHigh=+document.getElementById('s-bh').value;
-  cfg.triggerBand=document.getElementById('s-trig').value;
-  cfg.onDb=+document.getElementById('s-on').value;
-  cfg.offDb=+document.getElementById('s-off').value;
+  cfg.thrOnDb=+document.getElementById('s-on').value;
+  cfg.thrOffDb=+document.getElementById('s-off').value;
   cfg.minOnS=+document.getElementById('s-minon').value;
   cfg.minOffS=+document.getElementById('s-minoff').value;
-  cfg.baselineAlpha=+document.getElementById('s-alpha').value;
   cfg.fftSize=+document.getElementById('s-fft').value;
   cfg.smoothLive=+document.getElementById('s-sl').value;
   cfg.smoothLog=+document.getElementById('s-slog').value;
@@ -1360,7 +1272,6 @@ async function init(){
   // Night controls
   document.getElementById('btn-night-start').addEventListener('click',startNight);
   document.getElementById('btn-night-stop').addEventListener('click',stopNight);
-  document.getElementById('btn-force-event').addEventListener('click',forceEventStart);
   document.getElementById('btn-blackout').addEventListener('click',()=>{
     document.getElementById('blackout').style.display='';
   });
