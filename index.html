@@ -702,8 +702,11 @@ const BAND_KEYS=['A','B','broad'];
 let sms={};        // keyed by band
 let allEvents=[];  // tutti gli eventi di tutte le bande
 
+const SLOW_ALPHA=0.0002; // tau≈83 min @1sps — usata per thrOn/thrOff
+
 function createSM(band){
-  return{band,state:SM.IDLE,baseline:-60,riseStart:null,fallStart:null,
+  return{band,state:SM.IDLE,baseline:-60,slowBaseline:-60,
+         riseStart:null,fallStart:null,
          evStart:null,peak:-Infinity,inWarmup:true,warmupLeft:10};
 }
 
@@ -754,15 +757,23 @@ function smStepBand(sm, level, nowSec){
     sm.baseline=sm.baseline*(1-0.15)+level*0.15;
     sm.warmupLeft--;
     setBandUI(bid,'CALIBR.','var(--text2)',`${sm.warmupLeft}s`);
-    if(sm.warmupLeft<=0){ sm.inWarmup=false; setBandUI(bid,'IDLE','','—'); }
+    if(sm.warmupLeft<=0){
+      sm.inWarmup=false;
+      sm.slowBaseline=sm.baseline; // seed slow baseline dal warmup
+      setBandUI(bid,'IDLE','','—');
+    }
     return;
   }
-  const thrOn=sm.baseline+cfg.onDb, thrOff=sm.baseline+cfg.offDb;
-  if(sm.state!==SM.ACTIVE) sm.baseline=sm.baseline*(1-cfg.baselineAlpha)+level*cfg.baselineAlpha;
+  // thrOn/thrOff usano slow baseline: non insegue il rumore durante ACTIVE
+  const thrOn=sm.slowBaseline+cfg.onDb, thrOff=sm.slowBaseline+cfg.offDb;
+  if(sm.state!==SM.ACTIVE){
+    sm.baseline=sm.baseline*(1-cfg.baselineAlpha)+level*cfg.baselineAlpha;
+    sm.slowBaseline=sm.slowBaseline*(1-SLOW_ALPHA)+level*SLOW_ALPHA;
+  }
   const prev=sm.state;
   switch(sm.state){
     case SM.IDLE:
-      setBandUI(bid,'IDLE','','—');
+      setBandUI(bid,'IDLE','',`↑${thrOn.toFixed(0)}dB`);
       if(level>thrOn){sm.state=SM.RISING; sm.riseStart=nowSec;}
       break;
     case SM.RISING:{
@@ -804,9 +815,10 @@ function forceEventStart(){
   BAND_KEYS.forEach(k=>{
     const sm=sms[k]; if(!sm) return;
     sm.inWarmup=false; sm.warmupLeft=0;
-    // Baseline artificialmente bassa: l'app ora aspetta solo che il livello SCENDA
-    // thrOff = baseline + offDb deve essere sotto il livello di silenzio atteso
-    sm.baseline=lvls[k]-(cfg.onDb*2);
+    // Setta entrambe le baseline sotto il livello attuale così thrOff è ben sotto il silenzio
+    const forcedBase=lvls[k]-(cfg.onDb*2);
+    sm.baseline=forcedBase;
+    sm.slowBaseline=forcedBase;
     sm.state=SM.ACTIVE;
     sm.evStart=nowSec; sm.riseStart=nowSec; sm.peak=lvls[k];
     setBandUI(k,'● FORZATO','var(--red)','—');
