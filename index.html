@@ -1,1883 +1,1122 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="it">
 <head>
-  <meta charset="utf-8">
-  <title>Low Frequency Waterfall 40-140 Hz</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Low-Freq Hunter</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;font-family:system-ui,-apple-system,sans-serif;background:#0a0a0f;color:#e0e0f0}
+:root{
+  --bg:#0a0a0f;--bg2:#111118;--bg3:#1a1a25;--bg4:#222230;
+  --text:#e0e0f0;--text2:#8888aa;--text3:#444460;
+  --accent:#00d4aa;--accent2:#00ffcc;
+  --amber:#ffaa00;--red:#ff4466;--green:#44ffaa;
+  --nav-h:60px;
+}
+#app{display:flex;flex-direction:column;height:100%;position:relative}
+.tab-content{display:none;flex:1;overflow-y:auto;overflow-x:hidden;padding-bottom:calc(var(--nav-h) + 8px)}
+.tab-content.active{display:flex;flex-direction:column}
+.tab-nav{
+  position:fixed;bottom:0;left:0;right:0;height:var(--nav-h);
+  background:var(--bg2);border-top:1px solid var(--bg4);
+  display:flex;z-index:100;
+}
+.tab-nav button{
+  flex:1;border:none;background:none;color:var(--text2);
+  font-size:11px;padding:4px 0;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  transition:color .2s;
+}
+.tab-nav button.active{color:var(--accent)}
+.tab-nav button svg{width:22px;height:22px;fill:currentColor}
 
-  <style>
-    :root {
-      color-scheme: dark;
-    }
+/* === LIVE === */
+.spectrum-wrap{position:relative;background:var(--bg2);flex-shrink:0}
+#spectrum-canvas{display:block;width:100%}
+.live-readout{
+  padding:12px 16px;background:var(--bg2);border-top:1px solid var(--bg4);
+  display:flex;align-items:center;gap:12px;flex-shrink:0;
+}
+.live-number{
+  font-size:52px;font-variant-numeric:tabular-nums;
+  font-family:'Courier New',monospace;font-weight:700;
+  color:var(--accent2);line-height:1;min-width:118px;
+}
+.live-unit{font-size:14px;color:var(--text2);align-self:flex-end;padding-bottom:8px}
+.live-bar-wrap{flex:1;display:flex;flex-direction:column;gap:5px}
+.live-band-label{font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px}
+.level-bar-outer{height:26px;background:var(--bg4);border-radius:4px;position:relative;overflow:visible}
+.level-bar-inner{height:100%;border-radius:4px;background:linear-gradient(90deg,#006644,var(--accent));transition:none}
+.level-bar-peak{position:absolute;top:0;bottom:0;width:3px;background:#fff;border-radius:2px}
+.live-controls{padding:12px 16px;display:flex;flex-direction:column;gap:10px}
+.band-selector{display:flex;gap:6px;flex-wrap:wrap}
+.band-btn{
+  padding:8px 14px;border-radius:20px;border:1px solid var(--bg4);
+  background:var(--bg3);color:var(--text2);cursor:pointer;font-size:13px;transition:all .2s;
+}
+.band-btn.active{background:var(--accent);color:#000;border-color:var(--accent)}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap}
+.btn{
+  padding:10px 16px;border-radius:8px;border:1px solid var(--bg4);
+  background:var(--bg3);color:var(--text);cursor:pointer;font-size:13px;
+  transition:all .15s;min-height:44px;display:inline-flex;align-items:center;justify-content:center;
+}
+.btn:active{opacity:.7}
+.btn.primary{background:var(--accent);color:#000;border-color:var(--accent);font-weight:600}
+.btn.danger{background:var(--red);color:#fff;border-color:var(--red)}
+.btn.active-state{background:var(--accent);color:#000;border-color:var(--accent)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.ab-panel{
+  background:var(--bg3);border:1px solid var(--bg4);border-radius:8px;
+  padding:10px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px;
+}
+.ab-val{font-family:monospace;font-size:15px;color:var(--accent2)}
+.ab-diff{font-family:monospace;font-size:15px;color:var(--amber);font-weight:700}
+.info-note{font-size:11px;color:var(--text3);line-height:1.5;padding:4px 0}
 
-    body {
-      margin: 0;
-      padding: 20px;
-      background: #101010;
-      color: #eeeeee;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
+/* === NIGHT === */
+#tab-night{background:#000}
+.night-screen{width:100%;padding:20px 16px;display:flex;flex-direction:column;align-items:center;gap:14px}
+.night-clock{
+  font-size:58px;font-variant-numeric:tabular-nums;
+  font-family:'Courier New',monospace;color:#fff;letter-spacing:3px;
+}
+.night-rec{display:flex;align-items:center;gap:8px;font-size:15px;color:var(--red);font-weight:600;letter-spacing:2px}
+.rec-dot{width:11px;height:11px;border-radius:50%;background:var(--red);animation:blink 1.2s infinite}
+@keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+.night-stats{width:100%;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.night-stat{background:rgba(255,255,255,.05);border-radius:10px;padding:12px;text-align:center}
+.night-stat .n-label{font-size:10px;color:#666;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+.night-stat .n-value{font-size:22px;font-family:'Courier New',monospace;color:#fff;font-weight:700}
+#night-mini-canvas{width:100%;height:80px;border-radius:8px;display:block}
+.night-banner{
+  width:100%;padding:10px 14px;background:rgba(255,170,0,.1);
+  border:1px solid rgba(255,170,0,.3);border-radius:8px;
+  font-size:12px;color:var(--amber);text-align:center;line-height:1.5;
+}
+#night-bg-warn{
+  width:100%;padding:10px 14px;background:rgba(255,68,102,.15);
+  border:1px solid rgba(255,68,102,.4);border-radius:8px;
+  font-size:13px;color:var(--red);text-align:center;display:none;
+}
+.night-idle-msg{text-align:center;color:#555;font-size:14px;padding:10px 0}
 
-    h1 {
-      margin: 0 0 4px 0;
-      font-size: 26px;
-    }
+/* === SUMMARY === */
+#tab-summary{padding-top:0}
+.sum-header{padding:14px 16px 10px;display:flex;justify-content:space-between;align-items:center}
+.sum-header h2{font-size:17px;font-weight:600}
+.sessions-list{padding:0 16px;display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.session-item{
+  background:var(--bg2);border:1px solid var(--bg4);border-radius:10px;
+  padding:12px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;
+  transition:border-color .2s;
+}
+.session-item:active,.session-item.sel{border-color:var(--accent)}
+.s-name{font-size:14px;font-weight:600}
+.s-meta{font-size:12px;color:var(--text2);margin-top:2px}
+.s-badge{background:var(--bg3);padding:4px 10px;border-radius:12px;font-size:12px;color:var(--amber)}
+.session-detail{padding:0 16px;display:flex;flex-direction:column;gap:14px}
+#timeline-canvas{display:block;width:100%;border-radius:8px;background:var(--bg2)}
+.events-table{width:100%;border-collapse:collapse;font-size:12px}
+.events-table th{text-align:left;padding:8px 5px;color:var(--text2);font-weight:600;border-bottom:1px solid var(--bg4);font-size:10px;text-transform:uppercase;letter-spacing:.5px}
+.events-table td{padding:8px 5px;border-bottom:1px solid var(--bg3)}
+.events-table tr:hover td{background:var(--bg3)}
+.summary-stats{background:var(--bg2);border:1px solid var(--bg4);border-radius:10px;padding:14px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat-item .s-lbl{font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.5px}
+.stat-item .s-val{font-size:17px;font-family:monospace;color:var(--text);font-weight:600}
+.section-label{font-size:13px;font-weight:600;color:var(--text2)}
 
-    .subtitle {
-      color: #bbbbbb;
-      margin-bottom: 18px;
-      line-height: 1.4;
-    }
+/* === SETTINGS === */
+#tab-settings{padding-top:0}
+.settings-section{padding:14px 16px;border-bottom:1px solid var(--bg3)}
+.settings-section h3{font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
+.setting-row{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.03)}
+.setting-row:last-child{border-bottom:none}
+.s-label{font-size:14px}
+.setting-ctrl input[type=number]{
+  width:72px;padding:6px 8px;background:var(--bg3);border:1px solid var(--bg4);
+  color:var(--text);border-radius:6px;font-size:14px;text-align:right;
+}
+.setting-ctrl select{
+  padding:6px 8px;background:var(--bg3);border:1px solid var(--bg4);
+  color:var(--text);border-radius:6px;font-size:14px;
+}
+.toggle{position:relative;width:44px;height:24px;cursor:pointer;background:var(--bg4);border-radius:12px;transition:background .2s;flex-shrink:0}
+.toggle.on{background:var(--accent)}
+.toggle::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .2s}
+.toggle.on::after{transform:translateX(20px)}
 
-    .controls {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-      gap: 12px;
-      max-width: 1300px;
-      margin-bottom: 16px;
-    }
+/* === TOAST === */
+.toast{
+  position:fixed;bottom:calc(var(--nav-h)+12px);left:50%;transform:translateX(-50%);
+  background:#333;color:#fff;padding:10px 20px;border-radius:20px;
+  font-size:13px;z-index:300;pointer-events:none;opacity:0;transition:opacity .3s;white-space:nowrap;
+}
+.toast.show{opacity:1}
 
-    label {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      font-size: 13px;
-      color: #dddddd;
-    }
-
-    input, select, button {
-      font-size: 15px;
-      border-radius: 7px;
-      border: 1px solid #555;
-      background: #202020;
-      color: #eeeeee;
-      padding: 7px 9px;
-    }
-
-    input:focus, select:focus {
-      outline: 2px solid #3a8cff;
-    }
-
-    button {
-      cursor: pointer;
-      font-weight: 650;
-      border: none;
-    }
-
-    button.primary {
-      background: #2ecc71;
-      color: #051005;
-    }
-
-    button.danger {
-      background: #e74c3c;
-      color: white;
-    }
-
-    button.secondary {
-      background: #3498db;
-      color: white;
-    }
-
-    button.gray {
-      background: #555;
-      color: white;
-    }
-
-    button.night {
-      background: #111;
-      color: #fff;
-      border: 1px solid #777;
-    }
-
-    button:disabled {
-      opacity: 0.45;
-      cursor: not-allowed;
-    }
-
-    .main {
-      display: grid;
-      grid-template-columns: minmax(320px, 1000px) minmax(260px, 1fr);
-      gap: 18px;
-      align-items: start;
-    }
-
-    @media (max-width: 1000px) {
-      .main {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    .panel {
-      background: #181818;
-      border: 1px solid #333;
-      border-radius: 10px;
-      padding: 12px;
-    }
-
-    .canvas-wrap {
-      position: relative;
-      width: 100%;
-      overflow: hidden;
-      border-radius: 8px;
-      border: 1px solid #333;
-      background: #000;
-    }
-
-    canvas {
-      display: block;
-      width: 100%;
-      background: #000;
-    }
-
-    #waterfall {
-      height: 540px;
-    }
-
-    #spectrum {
-      height: 210px;
-      margin-top: 12px;
-    }
-
-    #sessionHeatmap {
-      height: 80px;
-      margin-top: 12px;
-    }
-
-    .axis {
-      display: flex;
-      justify-content: space-between;
-      color: #aaa;
-      font-size: 12px;
-      margin-top: 5px;
-      padding: 0 2px;
-    }
-
-    .status {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 8px;
-      margin: 12px 0;
-      color: #ddd;
-      font-size: 14px;
-    }
-
-    .status div {
-      background: #202020;
-      border: 1px solid #333;
-      border-radius: 8px;
-      padding: 8px;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 13px;
-    }
-
-    th, td {
-      border-bottom: 1px solid #333;
-      padding: 6px 4px;
-      text-align: right;
-      white-space: nowrap;
-    }
-
-    th:first-child, td:first-child {
-      text-align: left;
-    }
-
-    .small {
-      font-size: 12px;
-      color: #aaa;
-      line-height: 1.4;
-    }
-
-    .event-active {
-      color: #2ecc71;
-      font-weight: 700;
-    }
-
-    .event-closed {
-      color: #bbbbbb;
-    }
-
-    .warning {
-      background: #2b220d;
-      border: 1px solid #6d551a;
-      color: #ffd36e;
-      padding: 10px;
-      border-radius: 8px;
-      margin-bottom: 12px;
-      line-height: 1.4;
-    }
-
-    .autosave-info {
-      background: #0d2b1a;
-      border: 1px solid #1a6d3a;
-      color: #6effa0;
-      padding: 8px 10px;
-      border-radius: 8px;
-      margin-bottom: 12px;
-      font-size: 13px;
-      line-height: 1.4;
-    }
-
-    #nightOverlay {
-      position: fixed;
-      inset: 0;
-      z-index: 999999;
-      background: #000;
-      display: none;
-      cursor: none;
-      touch-action: manipulation;
-      user-select: none;
-      -webkit-user-select: none;
-    }
-
-    body.night-active {
-      background: #000;
-    }
-
-    .restore-banner {
-      background: #1a1a3a;
-      border: 1px solid #4444aa;
-      color: #aaccff;
-      padding: 12px;
-      border-radius: 8px;
-      margin-bottom: 12px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .restore-banner button {
-      font-size: 13px;
-      padding: 6px 12px;
-    }
-  </style>
+/* === BATTERY === */
+.battery-bar{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text3)}
+</style>
 </head>
-
 <body>
-  <h1>Low Frequency Waterfall</h1>
+<div id="app">
 
-  <div class="subtitle">
-    Spettrogramma e tracciamento di frequenze persistenti, pensato per la zona 40-140 Hz.
+<!-- ===== LIVE ===== -->
+<div id="tab-live" class="tab-content active">
+  <div class="spectrum-wrap" id="spectrum-wrap">
+    <canvas id="spectrum-canvas"></canvas>
   </div>
-
-  <div class="warning">
-    Nota: i dB mostrati sono relativi al microfono/browser, non dB SPL calibrati.
-    Per basse frequenze reali, soprattutto 30-80 Hz, molti microfoni integrati
-    non sono affidabili.
-  </div>
-
-  <div id="restoreBanner" class="restore-banner" style="display:none;">
-    <span>Sessione precedente trovata (<strong id="restoreInfo"></strong>). Ripristinare gli eventi?</span>
-    <button class="primary" id="restoreYes">Ripristina</button>
-    <button class="gray" id="restoreNo">Ignora</button>
-  </div>
-
-  <div class="autosave-info">
-    Auto-save: gli eventi vengono salvati in localStorage ogni 5 minuti e al cambio di visibilità della pagina.
-    Il waterfall raw viene salvato in IndexedDB (max ~10000 righe).
-  </div>
-
-  <div class="controls">
-    <label>
-      Frequenza minima Hz
-      <input id="minFreq" type="number" value="40" step="1">
-    </label>
-
-    <label>
-      Frequenza massima Hz
-      <input id="maxFreq" type="number" value="140" step="1">
-    </label>
-
-    <label>
-      Frequenze target (Hz, separate da virgola)
-      <input id="targetFreqs" type="text" value="50,100,150" placeholder="es. 50,100,150">
-    </label>
-
-    <label>
-      FFT size
-      <select id="fftSize">
-        <option value="8192">8192</option>
-        <option value="16384">16384</option>
-        <option value="32768" selected>32768</option>
-        <option value="65536">65536</option>
-      </select>
-    </label>
-
-    <label>
-      Intervallo waterfall ms
-      <input id="frameInterval" type="number" value="500" step="50">
-    </label>
-
-    <label>
-      dB minimo colore
-      <input id="minDb" type="number" value="-100" step="1">
-    </label>
-
-    <label>
-      dB massimo colore
-      <input id="maxDb" type="number" value="-40" step="1">
-    </label>
-
-    <label>
-      Soglia rilevamento dB
-      <input id="thresholdDb" type="number" value="-90" step="1">
-    </label>
-
-    <label>
-      Durata minima evento s
-      <input id="minEventDuration" type="number" value="10" step="0.5">
-    </label>
-
-    <label>
-      Tolleranza match Hz
-      <input id="matchToleranceHz" type="number" value="2.0" step="0.1">
-    </label>
-
-    <label>
-      Hold fine evento s
-      <input id="holdSeconds" type="number" value="10.0" step="0.5">
-    </label>
-
-    <label>
-      Prominenza minima picco dB
-      <input id="peakProminence" type="number" value="3.0" step="0.5">
-    </label>
-
-    <label style="grid-column: 1 / -1; background:#1e2a1e; border:1px solid #2a5a2a; border-radius:8px; padding:10px; gap:8px">
-      <strong style="color:#6effa0">Rilevamento banda (band energy)</strong>
-      <span class="small">Rileva quando l'energia media in una banda di frequenze supera la soglia, indipendentemente dalla forma del picco.</span>
-      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap:10px; margin-top:6px">
-        <label>
-          Bande monitorate (es. 95-105, 45-55)
-          <input id="bandDefs" type="text" value="95-105, 45-55, 145-155" placeholder="min-max Hz separate da virgola">
-        </label>
-        <label>
-          Soglia energia banda dB
-          <input id="bandThresholdDb" type="number" value="-75" step="1">
-        </label>
-        <label>
-          Durata minima evento banda s
-          <input id="bandMinDuration" type="number" value="10" step="0.5">
-        </label>
-        <label>
-          Hold fine evento banda s
-          <input id="bandHoldSeconds" type="number" value="10" step="0.5">
-        </label>
+  <div class="live-readout">
+    <div>
+      <div class="live-number" id="live-db">---</div>
+      <div class="live-unit">dBFS</div>
+    </div>
+    <div class="live-bar-wrap">
+      <div class="live-band-label" id="live-band-label">Banda B – 100 Hz</div>
+      <div class="level-bar-outer">
+        <div class="level-bar-inner" id="level-bar" style="width:0%"></div>
+        <div class="level-bar-peak" id="level-peak" style="left:0%"></div>
       </div>
-    </label>
-
-    <button id="startBtn" class="primary">Start microfono</button>
-    <button id="stopBtn" class="danger" disabled>Stop</button>
-    <button id="exportWaterfallBtn" class="secondary" disabled>Esporta waterfall CSV</button>
-    <button id="exportEventsBtn" class="secondary" disabled>Esporta eventi CSV</button>
-    <button id="exportTargetBtn" class="secondary" disabled>Esporta frequenze target CSV</button>
-    <button id="exportBandBtn" class="secondary" disabled>Esporta eventi banda CSV</button>
-    <button id="clearBtn" class="gray">Pulisci dati</button>
-    <button id="nightModeBtn" class="night">🌙 Log notturno</button>
-  </div>
-
-  <div class="status">
-    <div>Stato: <strong id="statusText">fermo</strong></div>
-    <div>Sample rate: <strong id="sampleRateText">-</strong></div>
-    <div>Risoluzione FFT: <strong id="resolutionText">-</strong></div>
-    <div>Tempo registrato: <strong id="elapsedText">0.0 s</strong></div>
-    <div>Picco corrente: <strong id="currentPeakText">-</strong></div>
-    <div>Eventi salvati: <strong id="eventsCountText">0</strong></div>
-    <div>Ultimo auto-save: <strong id="lastSaveText">-</strong></div>
-    <div>Filtro biquad: <strong id="filterStatusText">-</strong></div>
-    <div>Log target freq: <strong id="targetLogText">0 campioni</strong></div>
-    <div>Eventi banda: <strong id="bandEventsCountText">0</strong></div>
-  </div>
-
-  <div class="main">
-    <div class="panel">
-      <h2 style="margin-top:0">Waterfall</h2>
-
-      <div class="canvas-wrap">
-        <canvas id="waterfall" width="1000" height="540"></canvas>
-      </div>
-
-      <div class="axis">
-        <span id="axisMin">40 Hz</span>
-        <span>frequenza →</span>
-        <span id="axisMax">140 Hz</span>
-      </div>
-
-      <h2>Spettro corrente</h2>
-
-      <div class="canvas-wrap">
-        <canvas id="spectrum" width="1000" height="210"></canvas>
-      </div>
-
-      <div class="axis">
-        <span id="axisMin2">40 Hz</span>
-        <span>frequenza →</span>
-        <span id="axisMax2">140 Hz</span>
-      </div>
-
-      <h2>Sessione completa (1 pixel = 1 campione)</h2>
-
-      <div class="canvas-wrap">
-        <canvas id="sessionHeatmap" width="1000" height="80"></canvas>
-      </div>
-
-      <div class="axis">
-        <span id="heatmapStart">inizio</span>
-        <span>tempo →</span>
-        <span id="heatmapEnd">ora</span>
+      <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text3)">
+        <span>-120</span><span>-80</span><span>-40</span><span>0 dB</span>
       </div>
     </div>
-
-    <div class="panel">
-      <h2 style="margin-top:0">Eventi frequenza</h2>
-
-      <div class="small" style="margin-bottom:10px">
-        Un evento viene creato quando una linea supera la soglia per almeno la durata minima.
-        Se sparisce per più del tempo "hold", viene chiuso.
+  </div>
+  <div class="live-controls">
+    <div class="band-selector">
+      <button class="band-btn" data-band="A">A – 50 Hz</button>
+      <button class="band-btn active" data-band="B">B – 100 Hz</button>
+      <button class="band-btn" data-band="broad">Larga</button>
+    </div>
+    <div class="btn-row">
+      <button class="btn primary" id="btn-start">▶ Avvia</button>
+      <button class="btn" id="btn-freeze" disabled>❄ Freeze</button>
+      <button class="btn" id="btn-reset-peak" disabled>↑ Peak</button>
+      <button class="btn" id="btn-sonify" disabled>🔊 Sonify</button>
+    </div>
+    <div class="ab-panel" id="ab-panel">
+      <button class="btn" id="btn-cap-a" disabled style="padding:8px 12px;font-size:12px">Cattura A</button>
+      <div style="flex:1;font-size:12px">
+        <div>A: <span class="ab-val" id="ab-a">---</span> dB</div>
+        <div>B: <span class="ab-val" id="ab-b">---</span> dB</div>
       </div>
+      <button class="btn" id="btn-cap-b" disabled style="padding:8px 12px;font-size:12px">Cattura B</button>
+      <div>Δ: <span class="ab-diff" id="ab-diff">---</span> dB</div>
+    </div>
+    <div id="battery-display" class="battery-bar" style="display:none">🔋 <span id="battery-pct"></span></div>
+    <div class="info-note">ℹ I microfoni dei telefoni attenuano le frequenze sotto ~100 Hz. La misura è relativa, non calibrata in dB SPL.</div>
+  </div>
+</div>
 
-      <table>
-        <thead>
-          <tr>
-            <th>Stato</th>
-            <th>Inizio</th>
-            <th>Fine</th>
-            <th>Freq Hz</th>
-            <th>dB medio</th>
-            <th>Durata</th>
-          </tr>
-        </thead>
-        <tbody id="eventsTableBody"></tbody>
+<!-- ===== NIGHT ===== -->
+<div id="tab-night" class="tab-content">
+  <div class="night-screen">
+    <div class="night-clock" id="night-clock">--:--:--</div>
+    <div id="night-rec-row" style="display:none">
+      <div class="night-rec">
+        <div class="rec-dot"></div>
+        <span>REC</span>
+        <span id="night-elapsed" style="color:#666;font-weight:400;margin-left:6px">00:00:00</span>
+      </div>
+    </div>
+    <div class="night-idle-msg" id="night-idle-msg">Avvia il log notturno per rilevare eventi sonori.<br>La sessione viene salvata automaticamente.</div>
+    <div class="night-stats" id="night-stats" style="display:none">
+      <div class="night-stat"><div class="n-label">Livello attuale</div><div class="n-value" id="n-level">---</div></div>
+      <div class="night-stat"><div class="n-label">Baseline</div><div class="n-value" id="n-baseline">---</div></div>
+      <div class="night-stat"><div class="n-label">Stato</div><div class="n-value" id="n-state" style="font-size:15px">IDLE</div></div>
+      <div class="night-stat"><div class="n-label">Eventi</div><div class="n-value" id="n-events">0</div></div>
+    </div>
+    <canvas id="night-mini-canvas" style="display:none;background:rgba(255,255,255,.03);border-radius:8px"></canvas>
+    <div class="night-banner">⚡ Tieni il telefono in carica e l'app in primo piano.<br>Su iOS, bloccare lo schermo interrompe la registrazione.</div>
+    <div id="night-bg-warn">⚠ App andata in background — possibile interruzione della registrazione.</div>
+    <div class="btn-row" style="justify-content:center;width:100%">
+      <button class="btn primary" id="btn-night-start" style="font-size:15px;padding:14px 28px">🌙 Avvia Log Notturno</button>
+      <button class="btn danger" id="btn-night-stop" style="font-size:15px;padding:14px 28px;display:none">⬛ Stop</button>
+    </div>
+    <div style="font-size:11px;color:#333;text-align:center">Banda e soglie di trigger: Impostazioni</div>
+  </div>
+</div>
+
+<!-- ===== SUMMARY ===== -->
+<div id="tab-summary" class="tab-content">
+  <div class="sum-header">
+    <h2>Sessioni salvate</h2>
+    <button class="btn" id="btn-refresh" style="padding:7px 12px;font-size:12px">↻</button>
+  </div>
+  <div class="sessions-list" id="sessions-list">
+    <div style="color:var(--text2);font-size:14px;padding:20px;text-align:center">Nessuna sessione.</div>
+  </div>
+  <div class="session-detail" id="session-detail" style="display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div style="font-size:15px;font-weight:600" id="detail-title">—</div>
+      <button class="btn" id="btn-back" style="padding:6px 12px;font-size:12px">← Lista</button>
+    </div>
+    <canvas id="timeline-canvas" style="height:130px"></canvas>
+    <div class="summary-stats" id="summary-stats"></div>
+    <div class="section-label">Tabella eventi</div>
+    <div style="overflow-x:auto">
+      <table class="events-table">
+        <thead><tr><th>#</th><th>Inizio</th><th>Fine</th><th>Durata</th><th>Picco dB</th><th>Banda</th></tr></thead>
+        <tbody id="events-tbody"></tbody>
       </table>
     </div>
+    <div class="btn-row" style="flex-wrap:wrap">
+      <button class="btn" id="btn-csv-events">📄 CSV eventi</button>
+      <button class="btn" id="btn-csv-samples">📄 CSV campioni</button>
+      <button class="btn" id="btn-json">📦 JSON</button>
+      <button class="btn danger" id="btn-del-session">🗑 Elimina</button>
+    </div>
   </div>
+</div>
 
-  <div id="nightOverlay" title="Tocca per uscire dal log notturno"></div>
+<!-- ===== SETTINGS ===== -->
+<div id="tab-settings" class="tab-content">
+  <div class="settings-section">
+    <h3>Bande di frequenza</h3>
+    <div class="setting-row"><div class="s-label">Banda A — Centro (Hz)</div><div class="setting-ctrl"><input type="number" id="s-ac" min="10" max="500"></div></div>
+    <div class="setting-row"><div class="s-label">Banda A — Larghezza ±(Hz)</div><div class="setting-ctrl"><input type="number" id="s-aw" min="1" max="50"></div></div>
+    <div class="setting-row"><div class="s-label">Banda B — Centro (Hz)</div><div class="setting-ctrl"><input type="number" id="s-bc" min="10" max="500"></div></div>
+    <div class="setting-row"><div class="s-label">Banda B — Larghezza ±(Hz)</div><div class="setting-ctrl"><input type="number" id="s-bw" min="1" max="50"></div></div>
+    <div class="setting-row"><div class="s-label">Banda Larga — Low (Hz)</div><div class="setting-ctrl"><input type="number" id="s-bl" min="10" max="500"></div></div>
+    <div class="setting-row"><div class="s-label">Banda Larga — High (Hz)</div><div class="setting-ctrl"><input type="number" id="s-bh" min="50" max="2000"></div></div>
+  </div>
+  <div class="settings-section">
+    <h3>Rilevamento eventi</h3>
+    <div class="setting-row"><div class="s-label">Banda trigger</div><div class="setting-ctrl"><select id="s-trig"><option value="A">A</option><option value="B">B</option><option value="broad">Larga</option></select></div></div>
+    <div class="setting-row"><div class="s-label">Soglia ON (dB sopra baseline)</div><div class="setting-ctrl"><input type="number" id="s-on" min="1" max="30" step="0.5"></div></div>
+    <div class="setting-row"><div class="s-label">Soglia OFF (dB sopra baseline)</div><div class="setting-ctrl"><input type="number" id="s-off" min="0.5" max="25" step="0.5"></div></div>
+    <div class="setting-row"><div class="s-label">Durata min. ON (s)</div><div class="setting-ctrl"><input type="number" id="s-minon" min="1" max="120"></div></div>
+    <div class="setting-row"><div class="s-label">Durata min. OFF (s)</div><div class="setting-ctrl"><input type="number" id="s-minoff" min="1" max="300"></div></div>
+    <div class="setting-row"><div class="s-label">Alpha baseline EMA</div><div class="setting-ctrl"><input type="number" id="s-alpha" min="0.001" max="0.1" step="0.001"></div></div>
+  </div>
+  <div class="settings-section">
+    <h3>Analisi audio</h3>
+    <div class="setting-row"><div class="s-label">FFT Size</div><div class="setting-ctrl"><select id="s-fft"><option value="4096">4096 (veloce)</option><option value="8192">8192 (default)</option><option value="16384">16384 (massima risoluzione)</option></select></div></div>
+    <div class="setting-row"><div class="s-label">Smoothing Live (0–0.99)</div><div class="setting-ctrl"><input type="number" id="s-sl" min="0" max="0.99" step="0.05"></div></div>
+    <div class="setting-row"><div class="s-label">Smoothing Log (0–0.5)</div><div class="setting-ctrl"><input type="number" id="s-slog" min="0" max="0.5" step="0.05"></div></div>
+    <div class="setting-row"><div class="s-label">Spettro asse X — max Hz</div><div class="setting-ctrl"><input type="number" id="s-xmax" min="100" max="4000" step="50"></div></div>
+  </div>
+  <div class="settings-section">
+    <div class="setting-row"><div class="s-label">Sonificazione (stile Geiger)</div><div class="setting-ctrl"><div class="toggle" id="s-sonify-toggle"></div></div></div>
+  </div>
+  <div class="settings-section" style="border-bottom:none">
+    <button class="btn primary" id="btn-save-settings" style="width:100%;font-size:15px;padding:12px">💾 Salva impostazioni</button>
+  </div>
+</div>
+
+<!-- Bottom nav -->
+<nav class="tab-nav">
+  <button class="active" data-tab="live">
+    <svg viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>Live
+  </button>
+  <button data-tab="night">
+    <svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 0 1-4.4 2.26 5.403 5.403 0 0 1-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/></svg>Notte
+  </button>
+  <button data-tab="summary">
+    <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>Riepilogo
+  </button>
+  <button data-tab="settings">
+    <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>Impostazioni
+  </button>
+</nav>
+</div>
+<div class="toast" id="toast"></div>
 
 <script>
-(() => {
-  // ===== CONSTANTS =====
-  const MAX_WATERFALL_ROWS = 10000;
-  const AUTOSAVE_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
-  const STORAGE_KEY_EVENTS = "lfwa_events_v1";
-  const STORAGE_KEY_SESSION = "lfwa_session_v1";
-  const IDB_NAME = "lfwa_waterfall_db";
-  const IDB_STORE = "rows";
+'use strict';
 
-  // ===== DOM ELEMENTS =====
-  const els = {
-    minFreq: document.getElementById("minFreq"),
-    maxFreq: document.getElementById("maxFreq"),
-    fftSize: document.getElementById("fftSize"),
-    frameInterval: document.getElementById("frameInterval"),
-    minDb: document.getElementById("minDb"),
-    maxDb: document.getElementById("maxDb"),
-    thresholdDb: document.getElementById("thresholdDb"),
-    minEventDuration: document.getElementById("minEventDuration"),
-    matchToleranceHz: document.getElementById("matchToleranceHz"),
-    holdSeconds: document.getElementById("holdSeconds"),
-    peakProminence: document.getElementById("peakProminence"),
+// ── UTILS ──────────────────────────────────────────────────────────────────
+function uuid(){
+  return([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,c=>
+    (c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16));
+}
+let _toastTimer;
+function showToast(msg,dur=2800){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer=setTimeout(()=>el.classList.remove('show'),dur);
+}
+function fmtTime(d){ return new Date(d).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit',second:'2-digit'}); }
+function fmtDur(s){
+  const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),ss=s%60;
+  if(h) return `${h}h ${m}m ${ss}s`;
+  if(m) return `${m}m ${ss}s`;
+  return `${ss}s`;
+}
+function fmtIso(epochS){ return new Date(epochS*1000).toISOString(); }
+function dl(blob,name){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),15000);
+}
 
-    startBtn: document.getElementById("startBtn"),
-    stopBtn: document.getElementById("stopBtn"),
-    exportWaterfallBtn: document.getElementById("exportWaterfallBtn"),
-    exportEventsBtn: document.getElementById("exportEventsBtn"),
-    exportTargetBtn: document.getElementById("exportTargetBtn"),
-    exportBandBtn: document.getElementById("exportBandBtn"),
-    clearBtn: document.getElementById("clearBtn"),
-    nightModeBtn: document.getElementById("nightModeBtn"),
-    nightOverlay: document.getElementById("nightOverlay"),
-
-    restoreBanner: document.getElementById("restoreBanner"),
-    restoreInfo: document.getElementById("restoreInfo"),
-    restoreYes: document.getElementById("restoreYes"),
-    restoreNo: document.getElementById("restoreNo"),
-
-    statusText: document.getElementById("statusText"),
-    sampleRateText: document.getElementById("sampleRateText"),
-    resolutionText: document.getElementById("resolutionText"),
-    elapsedText: document.getElementById("elapsedText"),
-    currentPeakText: document.getElementById("currentPeakText"),
-    eventsCountText: document.getElementById("eventsCountText"),
-    lastSaveText: document.getElementById("lastSaveText"),
-    targetLogText: document.getElementById("targetLogText"),
-    bandEventsCountText: document.getElementById("bandEventsCountText"),
-    filterStatusText: document.getElementById("filterStatusText"),
-
-    axisMin: document.getElementById("axisMin"),
-    axisMax: document.getElementById("axisMax"),
-    axisMin2: document.getElementById("axisMin2"),
-    axisMax2: document.getElementById("axisMax2"),
-    heatmapStart: document.getElementById("heatmapStart"),
-    heatmapEnd: document.getElementById("heatmapEnd"),
-
-    waterfall: document.getElementById("waterfall"),
-    spectrum: document.getElementById("spectrum"),
-    sessionHeatmap: document.getElementById("sessionHeatmap"),
-    eventsTableBody: document.getElementById("eventsTableBody")
+// ── SETTINGS ───────────────────────────────────────────────────────────────
+const DEFAULTS={
+  bandACenter:50, bandAWidth:5,
+  bandBCenter:100, bandBWidth:5,
+  broadLow:20, broadHigh:200,
+  triggerBand:'B',
+  onDb:6, offDb:3, minOnS:10, minOffS:15, baselineAlpha:0.01,
+  fftSize:8192, smoothLive:0.6, smoothLog:0.2,
+  specXMax:250, sonification:false
+};
+let cfg={...DEFAULTS};
+function loadCfg(){ try{ cfg={...DEFAULTS,...JSON.parse(localStorage.getItem('lf-cfg')||'{}')}; }catch(e){ cfg={...DEFAULTS}; } }
+function saveCfg(){ localStorage.setItem('lf-cfg',JSON.stringify(cfg)); }
+function getBands(){
+  return {
+    A:{low:cfg.bandACenter-cfg.bandAWidth, high:cfg.bandACenter+cfg.bandAWidth, label:`A – ${cfg.bandACenter} Hz`},
+    B:{low:cfg.bandBCenter-cfg.bandBWidth, high:cfg.bandBCenter+cfg.bandBWidth, label:`B – ${cfg.bandBCenter} Hz`},
+    broad:{low:cfg.broadLow, high:cfg.broadHigh, label:`Larga ${cfg.broadLow}–${cfg.broadHigh} Hz`}
   };
+}
 
-  const wfCtx = els.waterfall.getContext("2d", { willReadFrequently: true });
-  const spCtx = els.spectrum.getContext("2d");
-  const hmCtx = els.sessionHeatmap.getContext("2d", { willReadFrequently: true });
-
-  // ===== AUDIO STATE =====
-  let audioContext = null;
-  let analyser = null;
-  let source = null;
-  let mediaStream = null;
-  let biquadLow = null;
-  let biquadHigh = null;
-  let freqData = null;
-
-  // ===== TIMING STATE =====
-  let running = false;
-  let samplingTimer = null;
-  let renderAnimId = null;
-  let startPerfTime = 0;
-  let startDate = null;
-
-  // ===== DATA STATE =====
-  let waterfallRows = []; // circular buffer (max MAX_WATERFALL_ROWS)
-  let targetRows = [];   // log of target frequencies, one entry per sample
-  let bandTracks = {};   // active band tracks keyed by band label e.g. "95-105"
-  let bandEvents = [];   // closed band events
-  let sessionHeatmapData = []; // {time, avgDb, maxDb, peakFreq} per ogni campione
-  let activeTracks = [];
-  let closedEvents = [];
-  let nextTrackId = 1;
-
-  // ===== WAKE LOCK =====
-  let wakeLock = null;
-  let wakeLockWanted = false;
-  let nightModeActive = false;
-
-  // ===== AUTO-SAVE =====
-  let autosaveTimer = null;
-
-  // ===== PARAMS =====
-  function params() {
-    return {
-      minFreq: Number(els.minFreq.value),
-      maxFreq: Number(els.maxFreq.value),
-      fftSize: Number(els.fftSize.value),
-      frameInterval: Number(els.frameInterval.value),
-      minDb: Number(els.minDb.value),
-      maxDb: Number(els.maxDb.value),
-      thresholdDb: Number(els.thresholdDb.value),
-      minEventDuration: Number(els.minEventDuration.value),
-      matchToleranceHz: Number(els.matchToleranceHz.value),
-      holdSeconds: Number(els.holdSeconds.value),
-      peakProminence: Number(els.peakProminence.value)
-    };
-  }
-
-  // ===== TARGET FREQUENCIES =====
-  function getTargetFreqs() {
-    const raw = (document.getElementById("targetFreqs").value || "").split(",");
-    return raw
-      .map(s => parseFloat(s.trim()))
-      .filter(f => Number.isFinite(f) && f > 0)
-      .sort((a, b) => a - b);
-  }
-
-  function getDbAtFreqInterpolated(freq) {
-    // Linear interpolation between adjacent bins for better accuracy at target freqs
-    if (!audioContext || !analyser || !freqData) return null;
-    const binExact = freq * analyser.fftSize / audioContext.sampleRate;
-    const binLow = Math.floor(binExact);
-    const binHigh = Math.ceil(binExact);
-    if (binLow < 0 || binHigh >= freqData.length) return null;
-    if (binLow === binHigh) return freqData[binLow];
-    const t = binExact - binLow;
-    const db = freqData[binLow] * (1 - t) + freqData[binHigh] * t;
-    return Number.isFinite(db) ? db : null;
-  }
-
-  function parseBandDefs() {
-    const raw = (document.getElementById("bandDefs").value || "").split(",");
-    const bands = [];
-    for (const s of raw) {
-      const m = s.trim().match(/^(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)$/);
-      if (m) {
-        const lo = parseFloat(m[1]);
-        const hi = parseFloat(m[2]);
-        if (lo < hi) bands.push({ label: `${lo}-${hi}`, lo, hi });
+// ── INDEXEDDB ──────────────────────────────────────────────────────────────
+let db=null;
+function openDb(){
+  return new Promise((res,rej)=>{
+    const req=indexedDB.open('lowfreq',1);
+    req.onupgradeneeded=e=>{
+      const d=e.target.result;
+      if(!d.objectStoreNames.contains('sessions')) d.createObjectStore('sessions',{keyPath:'id'});
+      if(!d.objectStoreNames.contains('samples')){
+        const s=d.createObjectStore('samples',{keyPath:['sessionId','t']});
+        s.createIndex('bySession','sessionId',{unique:false});
       }
-    }
-    return bands;
-  }
-
-  function getBandEnergy(lo, hi) {
-    // Returns average dB across all bins in [lo, hi] Hz
-    if (!audioContext || !analyser || !freqData) return null;
-    const startBin = Math.max(0, Math.ceil(lo * analyser.fftSize / audioContext.sampleRate));
-    const endBin = Math.min(freqData.length - 1, Math.floor(hi * analyser.fftSize / audioContext.sampleRate));
-    if (endBin < startBin) return null;
-
-    // Convert dB to linear power, average, convert back
-    let sumPower = 0;
-    let count = 0;
-    for (let bin = startBin; bin <= endBin; bin++) {
-      const db = freqData[bin];
-      if (Number.isFinite(db)) {
-        sumPower += Math.pow(10, db / 10);
-        count++;
-      }
-    }
-    if (count === 0) return null;
-    return 10 * Math.log10(sumPower / count);
-  }
-
-  // ===== UTILITIES =====
-  function pad2(n) { return String(n).padStart(2, "0"); }
-
-  function dateFromElapsedSec(sec) {
-    if (!startDate) return null;
-    return new Date(startDate.getTime() + sec * 1000);
-  }
-
-  function localTimeHM(date) {
-    if (!date) return "";
-    return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
-  }
-
-  function localTimeHMS(date) {
-    if (!date) return "";
-    return `${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`;
-  }
-
-  function localDateTimeString(date) {
-    if (!date) return "";
-    return [
-      date.getFullYear(), "-", pad2(date.getMonth() + 1), "-", pad2(date.getDate()),
-      " ", pad2(date.getHours()), ":", pad2(date.getMinutes()), ":", pad2(date.getSeconds())
-    ].join("");
-  }
-
-  function getElapsedSec() {
-    if (!startPerfTime) return 0;
-    return (performance.now() - startPerfTime) / 1000;
-  }
-
-  // ===== AXIS LABELS =====
-  function updateAxisLabels() {
-    const p = params();
-    els.axisMin.textContent = `${p.minFreq} Hz`;
-    els.axisMax.textContent = `${p.maxFreq} Hz`;
-    els.axisMin2.textContent = `${p.minFreq} Hz`;
-    els.axisMax2.textContent = `${p.maxFreq} Hz`;
-  }
-
-  // ===== CANVAS CLEAR =====
-  function clearCanvas() {
-    wfCtx.fillStyle = "#000";
-    wfCtx.fillRect(0, 0, els.waterfall.width, els.waterfall.height);
-    spCtx.fillStyle = "#000";
-    spCtx.fillRect(0, 0, els.spectrum.width, els.spectrum.height);
-    hmCtx.fillStyle = "#000";
-    hmCtx.fillRect(0, 0, els.sessionHeatmap.width, els.sessionHeatmap.height);
-  }
-
-  // ===== COLOR MAP =====
-  function dbToColor(db, minDb, maxDb) {
-    let t = (db - minDb) / (maxDb - minDb);
-    t = Math.max(0, Math.min(1, t));
-
-    let r = 0, g = 0, b = 0;
-    if (t < 0.2) {
-      const k = t / 0.2;
-      b = Math.round(80 + 120 * k);
-    } else if (t < 0.4) {
-      const k = (t - 0.2) / 0.2;
-      g = Math.round(220 * k);
-      b = 255;
-    } else if (t < 0.6) {
-      const k = (t - 0.4) / 0.2;
-      r = Math.round(80 * k);
-      g = 255;
-      b = Math.round(255 * (1 - k));
-    } else if (t < 0.8) {
-      const k = (t - 0.6) / 0.2;
-      r = Math.round(255 * k);
-      g = 255;
-    } else {
-      const k = (t - 0.8) / 0.2;
-      r = 255;
-      g = Math.round(255 * (1 - 0.45 * k));
-      b = Math.round(255 * k);
-    }
-    return [r, g, b, 255];
-  }
-
-  // ===== FREQ/BIN CONVERSION =====
-  function freqToBin(freq) {
-    if (!audioContext || !analyser) return 0;
-    return Math.round(freq * analyser.fftSize / audioContext.sampleRate);
-  }
-
-  function binToFreq(bin) {
-    if (!audioContext || !analyser) return 0;
-    return bin * audioContext.sampleRate / analyser.fftSize;
-  }
-
-  function getDbAtFrequency(freq) {
-    const bin = freqToBin(freq);
-    if (!freqData || bin < 0 || bin >= freqData.length) return -Infinity;
-    return freqData[bin];
-  }
-
-  // ===== SAMPLING (setInterval-based, not rAF) =====
-  function sampleAndProcess() {
-    if (!running || !analyser || !freqData) return;
-
-    const p = params();
-    const elapsedSec = getElapsedSec();
-    els.elapsedText.textContent = `${elapsedSec.toFixed(1)} s`;
-
-    // Read frequency data
-    analyser.getFloatFrequencyData(freqData);
-
-    // Store waterfall row (circular buffer)
-    const row = extractRowForStorage(elapsedSec);
-    waterfallRows.push(row);
-    if (waterfallRows.length > MAX_WATERFALL_ROWS) {
-      waterfallRows.shift();
-    }
-
-    // Log target frequencies (lightweight, one row per sample)
-    const targetFreqs = getTargetFreqs();
-    if (targetFreqs.length > 0) {
-      const targetEntry = { isoTime: new Date().toISOString(), elapsedSec };
-      for (const f of targetFreqs) {
-        targetEntry[f] = getDbAtFreqInterpolated(f);
-      }
-      targetRows.push(targetEntry);
-      els.targetLogText.textContent = `${targetRows.length} campioni`;
-      els.exportTargetBtn.disabled = false;
-    }
-
-    // Compute session heatmap data point
-    const startBin = Math.max(0, freqToBin(p.minFreq));
-    const endBin = Math.min(freqData.length - 1, freqToBin(p.maxFreq));
-    let sumDb = 0, maxDb = -Infinity, peakFreq = 0, count = 0;
-    for (let bin = startBin; bin <= endBin; bin++) {
-      const db = freqData[bin];
-      if (Number.isFinite(db)) {
-        sumDb += db;
-        count++;
-        if (db > maxDb) {
-          maxDb = db;
-          peakFreq = binToFreq(bin);
-        }
-      }
-    }
-    sessionHeatmapData.push({
-      time: new Date(),
-      elapsedSec,
-      avgDb: count > 0 ? sumDb / count : -100,
-      maxDb,
-      peakFreq
-    });
-
-    // Find peaks
-    const peaks = findPeaks();
-
-    // Update peak display
-    if (peaks.length > 0) {
-      const top = peaks[0];
-      els.currentPeakText.textContent = `${top.freq.toFixed(2)} Hz, ${top.db.toFixed(1)} dB`;
-    } else {
-      els.currentPeakText.textContent = "-";
-    }
-
-    // Update tracks/events
-    updateTracks(peaks, elapsedSec);
-
-    // ===== BAND ENERGY DETECTION =====
-    const bandDefs = parseBandDefs();
-    const bandThreshDb = Number(document.getElementById("bandThresholdDb").value);
-    const bandMinDur = Number(document.getElementById("bandMinDuration").value);
-    const bandHold = Number(document.getElementById("bandHoldSeconds").value);
-
-    for (const band of bandDefs) {
-      const energy = getBandEnergy(band.lo, band.hi);
-      if (energy === null) continue;
-
-      const isActive = energy >= bandThreshDb;
-
-      if (!bandTracks[band.label]) {
-        // No existing track for this band
-        if (isActive) {
-          bandTracks[band.label] = {
-            label: band.label,
-            lo: band.lo,
-            hi: band.hi,
-            start: elapsedSec,
-            lastSeen: elapsedSec,
-            sumDb: energy,
-            count: 1,
-            maxDb: energy
-          };
-        }
-      } else {
-        const tr = bandTracks[band.label];
-        if (isActive) {
-          tr.lastSeen = elapsedSec;
-          tr.sumDb += energy;
-          tr.count++;
-          tr.maxDb = Math.max(tr.maxDb, energy);
-        } else {
-          // Check if hold expired
-          if (elapsedSec - tr.lastSeen > bandHold) {
-            const duration = tr.lastSeen - tr.start;
-            if (duration >= bandMinDur) {
-              const startDateObj = dateFromElapsedSec(tr.start);
-              const endDateObj = dateFromElapsedSec(tr.lastSeen);
-              bandEvents.push({
-                label: tr.label,
-                lo: tr.lo,
-                hi: tr.hi,
-                startSec: tr.start,
-                endSec: tr.lastSeen,
-                durationSec: duration,
-                avgDb: tr.sumDb / tr.count,
-                maxDb: tr.maxDb,
-                samples: tr.count,
-                startLocalDateTime: localDateTimeString(startDateObj),
-                endLocalDateTime: localDateTimeString(endDateObj),
-                startLocalTime: localTimeHMS(startDateObj),
-                endLocalTime: localTimeHMS(endDateObj),
-                startIso: startDateObj ? startDateObj.toISOString() : "",
-                endIso: endDateObj ? endDateObj.toISOString() : ""
-              });
-            }
-            delete bandTracks[band.label];
-          }
-        }
-      }
-    }
-
-    els.bandEventsCountText.textContent = String(
-      bandEvents.length + Object.keys(bandTracks).length
-    );
-    els.exportBandBtn.disabled = bandEvents.length === 0 && Object.keys(bandTracks).length === 0;
-
-    // Update button states
-    els.exportWaterfallBtn.disabled = waterfallRows.length === 0;
-    els.exportEventsBtn.disabled = closedEvents.length === 0 && activeTracks.length === 0;
-    els.exportTargetBtn.disabled = targetRows.length === 0;
-  }
-
-  // ===== RENDERING (rAF-based, visual only) =====
-  let lastRenderTime = 0;
-  const RENDER_INTERVAL = 200; // max 5fps rendering
-
-  function renderLoop(now) {
-    if (!running) return;
-    renderAnimId = requestAnimationFrame(renderLoop);
-
-    if (now - lastRenderTime < RENDER_INTERVAL) return;
-    lastRenderTime = now;
-
-    const p = params();
-    const elapsedSec = getElapsedSec();
-
-    drawWaterfallRow();
-    drawSpectrum(findPeaks());
-    drawSessionHeatmap();
-    renderEventsTable(elapsedSec);
-  }
-
-  // ===== WATERFALL DRAWING =====
-  function drawWaterfallRow() {
-    const canvas = els.waterfall;
-    const w = canvas.width;
-    const h = canvas.height;
-    const p = params();
-
-    // Scroll down
-    wfCtx.drawImage(canvas, 0, 0, w, h - 1, 0, 1, w, h - 1);
-
-    // Draw new top row
-    const imageData = wfCtx.createImageData(w, 1);
-    const data = imageData.data;
-
-    for (let x = 0; x < w; x++) {
-      const frac = x / (w - 1);
-      const freq = p.minFreq + frac * (p.maxFreq - p.minFreq);
-      const db = getDbAtFrequency(freq);
-      const [r, g, b, a] = dbToColor(db, p.minDb, p.maxDb);
-      const idx = x * 4;
-      data[idx] = r; data[idx + 1] = g; data[idx + 2] = b; data[idx + 3] = a;
-    }
-
-    wfCtx.putImageData(imageData, 0, 0);
-
-    // Grid lines
-    wfCtx.save();
-    wfCtx.globalAlpha = 0.2;
-    wfCtx.strokeStyle = "#ffffff";
-    wfCtx.lineWidth = 1;
-    for (let f = Math.ceil(p.minFreq / 10) * 10; f <= p.maxFreq; f += 10) {
-      const x = ((f - p.minFreq) / (p.maxFreq - p.minFreq)) * w;
-      wfCtx.beginPath(); wfCtx.moveTo(x, 0); wfCtx.lineTo(x, h); wfCtx.stroke();
-    }
-    // Reference lines: 50Hz and 100Hz (mains + harmonic)
-    wfCtx.globalAlpha = 0.5;
-    wfCtx.strokeStyle = "#ff5555";
-    wfCtx.setLineDash([3, 3]);
-    [50, 100, 150].forEach(f => {
-      if (f >= p.minFreq && f <= p.maxFreq) {
-        const x = ((f - p.minFreq) / (p.maxFreq - p.minFreq)) * w;
-        wfCtx.beginPath(); wfCtx.moveTo(x, 0); wfCtx.lineTo(x, h); wfCtx.stroke();
-      }
-    });
-    wfCtx.restore();
-  }
-
-  // ===== SPECTRUM DRAWING =====
-  function drawSpectrum(peaks) {
-    const canvas = els.spectrum;
-    const ctx = spCtx;
-    const w = canvas.width;
-    const h = canvas.height;
-    const p = params();
-
-    ctx.fillStyle = "#000";
-    ctx.fillRect(0, 0, w, h);
-
-    // Grid
-    ctx.save();
-    ctx.strokeStyle = "#222";
-    ctx.lineWidth = 1;
-    for (let f = Math.ceil(p.minFreq / 10) * 10; f <= p.maxFreq; f += 10) {
-      const x = ((f - p.minFreq) / (p.maxFreq - p.minFreq)) * w;
-      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
-    }
-    for (let db = Math.ceil(p.minDb / 10) * 10; db <= p.maxDb; db += 10) {
-      const y = h - ((db - p.minDb) / (p.maxDb - p.minDb)) * h;
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
-      ctx.fillStyle = "#777";
-      ctx.font = "12px system-ui";
-      ctx.fillText(`${db}`, 4, y - 2);
-    }
-    ctx.restore();
-
-    // Reference freq lines (50, 100, 150 Hz)
-    ctx.save();
-    ctx.strokeStyle = "#ff555566";
-    ctx.lineWidth = 1;
-    ctx.setLineDash([4, 4]);
-    [50, 100, 150].forEach(f => {
-      if (f >= p.minFreq && f <= p.maxFreq) {
-        const x = ((f - p.minFreq) / (p.maxFreq - p.minFreq)) * w;
-        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
-        ctx.fillStyle = "#ff5555";
-        ctx.font = "10px system-ui";
-        ctx.fillText(`${f}`, x + 2, 12);
-      }
-    });
-    ctx.restore();
-
-    // Threshold line
-    const thY = h - ((p.thresholdDb - p.minDb) / (p.maxDb - p.minDb)) * h;
-    ctx.save();
-    ctx.strokeStyle = "#ff5555";
-    ctx.setLineDash([5, 5]);
-    ctx.beginPath(); ctx.moveTo(0, thY); ctx.lineTo(w, thY); ctx.stroke();
-    ctx.restore();
-
-    // Spectrum curve
-    ctx.strokeStyle = "#66ccff";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    for (let x = 0; x < w; x++) {
-      const frac = x / (w - 1);
-      const freq = p.minFreq + frac * (p.maxFreq - p.minFreq);
-      const db = getDbAtFrequency(freq);
-      const y = Math.max(0, Math.min(h, h - ((db - p.minDb) / (p.maxDb - p.minDb)) * h));
-      if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-
-    // Peak markers
-    ctx.save();
-    ctx.fillStyle = "#ffff66";
-    ctx.font = "12px system-ui";
-    peaks.slice(0, 8).forEach(pk => {
-      const x = ((pk.freq - p.minFreq) / (p.maxFreq - p.minFreq)) * w;
-      const y = h - ((pk.db - p.minDb) / (p.maxDb - p.minDb)) * h;
-      ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill();
-      ctx.fillText(`${pk.freq.toFixed(1)} Hz`, x + 6, Math.max(12, y - 6));
-    });
-    ctx.restore();
-  }
-
-  // ===== SESSION HEATMAP =====
-  function drawSessionHeatmap() {
-    const canvas = els.sessionHeatmap;
-    const ctx = hmCtx;
-    const w = canvas.width;
-    const h = canvas.height;
-    const p = params();
-
-    if (sessionHeatmapData.length === 0) return;
-
-    ctx.fillStyle = "#000";
-    ctx.fillRect(0, 0, w, h);
-
-    const totalPoints = sessionHeatmapData.length;
-    const pixelsPerPoint = w / totalPoints;
-
-    if (pixelsPerPoint >= 1) {
-      // Each point gets 1+ pixels
-      for (let i = 0; i < totalPoints; i++) {
-        const d = sessionHeatmapData[i];
-        const x = Math.floor((i / totalPoints) * w);
-        const nextX = Math.floor(((i + 1) / totalPoints) * w);
-        const colW = Math.max(1, nextX - x);
-
-        // Color by maxDb
-        const [r, g, b] = dbToColor(d.maxDb, p.minDb, p.maxDb);
-        ctx.fillStyle = `rgb(${r},${g},${b})`;
-        ctx.fillRect(x, 0, colW, h);
-      }
-    } else {
-      // More points than pixels: aggregate
-      for (let x = 0; x < w; x++) {
-        const startIdx = Math.floor((x / w) * totalPoints);
-        const endIdx = Math.floor(((x + 1) / w) * totalPoints);
-        let maxVal = -Infinity;
-        for (let i = startIdx; i < endIdx && i < totalPoints; i++) {
-          if (sessionHeatmapData[i].maxDb > maxVal) maxVal = sessionHeatmapData[i].maxDb;
-        }
-        const [r, g, b] = dbToColor(maxVal, p.minDb, p.maxDb);
-        ctx.fillStyle = `rgb(${r},${g},${b})`;
-        ctx.fillRect(x, 0, 1, h);
-      }
-    }
-
-    // Time labels
-    if (sessionHeatmapData.length > 0) {
-      const first = sessionHeatmapData[0].time;
-      const last = sessionHeatmapData[sessionHeatmapData.length - 1].time;
-      els.heatmapStart.textContent = localTimeHMS(first);
-      els.heatmapEnd.textContent = localTimeHMS(last);
-    }
-
-    // Hour markers
-    ctx.save();
-    ctx.strokeStyle = "rgba(255,255,255,0.4)";
-    ctx.fillStyle = "rgba(255,255,255,0.6)";
-    ctx.font = "10px system-ui";
-    ctx.lineWidth = 1;
-
-    if (totalPoints > 1) {
-      const totalDurationMs = sessionHeatmapData[totalPoints - 1].time - sessionHeatmapData[0].time;
-      if (totalDurationMs > 60000) { // more than 1 min
-        const startMs = sessionHeatmapData[0].time.getTime();
-        // find interval: every 10 min if < 2h, every 30 min if < 6h, every 1h otherwise
-        let intervalMs = 10 * 60000;
-        if (totalDurationMs > 2 * 3600000) intervalMs = 30 * 60000;
-        if (totalDurationMs > 6 * 3600000) intervalMs = 3600000;
-
-        const firstMark = Math.ceil(startMs / intervalMs) * intervalMs;
-        for (let t = firstMark; t < startMs + totalDurationMs; t += intervalMs) {
-          const frac = (t - startMs) / totalDurationMs;
-          const x = frac * w;
-          ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
-          const d = new Date(t);
-          ctx.fillText(localTimeHM(d), x + 2, h - 4);
-        }
-      }
-    }
-    ctx.restore();
-  }
-
-  // ===== DATA EXTRACTION FOR STORAGE =====
-  function extractRowForStorage(elapsedSec) {
-    const p = params();
-    const startBin = Math.max(0, freqToBin(p.minFreq));
-    const endBin = Math.min(freqData.length - 1, freqToBin(p.maxFreq));
-    const bins = [];
-    for (let bin = startBin; bin <= endBin; bin++) {
-      bins.push({ freq: binToFreq(bin), db: freqData[bin] });
-    }
-    return { isoTime: new Date().toISOString(), elapsedSec, bins };
-  }
-
-  // ===== PEAK DETECTION (with prominence) =====
-  function findPeaks() {
-    if (!freqData || !audioContext || !analyser) return [];
-
-    const p = params();
-    const peaks = [];
-    const startBin = Math.max(2, freqToBin(p.minFreq));
-    const endBin = Math.min(freqData.length - 3, freqToBin(p.maxFreq));
-    const prominence = p.peakProminence;
-
-    for (let bin = startBin; bin <= endBin; bin++) {
-      const db = freqData[bin];
-      const prev1 = freqData[bin - 1];
-      const prev2 = freqData[bin - 2];
-      const next1 = freqData[bin + 1];
-      const next2 = freqData[bin + 2];
-
-      // Must be above threshold
-      if (db < p.thresholdDb) continue;
-
-      // Must be local maximum (>= immediate neighbors)
-      if (db < prev1 || db < next1) continue;
-
-      // Prominence check: must be > neighbors by at least prominence dB
-      const neighborMax = Math.max(prev2, prev1, next1, next2);
-      if (db - neighborMax < prominence) continue;
-
-      // Parabolic interpolation for sub-bin precision
-      let refinedBin = bin;
-      const denom = prev1 - 2 * db + next1;
-      if (Math.abs(denom) > 1e-9) {
-        const delta = 0.5 * (prev1 - next1) / denom;
-        if (Number.isFinite(delta) && Math.abs(delta) <= 1) {
-          refinedBin = bin + delta;
-        }
-      }
-
-      peaks.push({
-        bin,
-        freq: refinedBin * audioContext.sampleRate / analyser.fftSize,
-        db
-      });
-    }
-
-    peaks.sort((a, b) => b.db - a.db);
-
-    // Deduplicate close peaks
-    const filtered = [];
-    for (const pk of peaks) {
-      if (!filtered.some(x => Math.abs(x.freq - pk.freq) < 1.5)) {
-        filtered.push(pk);
-      }
-    }
-    return filtered;
-  }
-
-  // ===== TRACK MANAGEMENT =====
-  function updateTracks(peaks, elapsedSec) {
-    const p = params();
-
-    for (const tr of activeTracks) tr.matchedThisFrame = false;
-
-    for (const pk of peaks) {
-      let bestTrack = null;
-      let bestDistance = Infinity;
-
-      for (const tr of activeTracks) {
-        if (tr.matchedThisFrame) continue; // already matched this frame
-        const distance = Math.abs(tr.currentFreq - pk.freq);
-        if (distance < bestDistance && distance <= p.matchToleranceHz) {
-          bestDistance = distance;
-          bestTrack = tr;
-        }
-      }
-
-      if (bestTrack) {
-        bestTrack.matchedThisFrame = true;
-        bestTrack.lastSeen = elapsedSec;
-        bestTrack.count += 1;
-        bestTrack.sumFreq += pk.freq;
-        bestTrack.sumDb += pk.db;
-        bestTrack.currentFreq = bestTrack.sumFreq / bestTrack.count;
-        bestTrack.currentDb = bestTrack.sumDb / bestTrack.count;
-        bestTrack.maxDb = Math.max(bestTrack.maxDb, pk.db);
-      } else {
-        activeTracks.push({
-          id: nextTrackId++,
-          start: elapsedSec,
-          lastSeen: elapsedSec,
-          count: 1,
-          sumFreq: pk.freq,
-          sumDb: pk.db,
-          currentFreq: pk.freq,
-          currentDb: pk.db,
-          maxDb: pk.db,
-          matchedThisFrame: true
-        });
-      }
-    }
-
-    // Close expired tracks
-    const stillActive = [];
-    for (const tr of activeTracks) {
-      const missingFor = elapsedSec - tr.lastSeen;
-      const duration = tr.lastSeen - tr.start;
-
-      if (missingFor > p.holdSeconds) {
-        if (duration >= p.minEventDuration) {
-          const startDateObj = dateFromElapsedSec(tr.start);
-          const endDateObj = dateFromElapsedSec(tr.lastSeen);
-          closedEvents.push({
-            id: tr.id,
-            startSec: tr.start,
-            endSec: tr.lastSeen,
-            durationSec: duration,
-            avgFreqHz: tr.sumFreq / tr.count,
-            avgDb: tr.sumDb / tr.count,
-            maxDb: tr.maxDb,
-            samples: tr.count,
-            startIso: startDateObj.toISOString(),
-            endIso: endDateObj.toISOString(),
-            startLocalHM: localTimeHM(startDateObj),
-            endLocalHM: localTimeHM(endDateObj),
-            startLocalTime: localTimeHMS(startDateObj),
-            endLocalTime: localTimeHMS(endDateObj),
-            startLocalDateTime: localDateTimeString(startDateObj),
-            endLocalDateTime: localDateTimeString(endDateObj)
-          });
-        }
-        // else: too short, discard
-      } else {
-        stillActive.push(tr);
-      }
-    }
-    activeTracks = stillActive;
-  }
-
-  // ===== EVENTS TABLE =====
-  function renderEventsTable(elapsedSec) {
-    const p = params();
-
-    const activeVisible = activeTracks
-      .filter(tr => tr.lastSeen - tr.start >= p.minEventDuration)
-      .map(tr => {
-        const startDateObj = dateFromElapsedSec(tr.start);
-        const endDateObj = dateFromElapsedSec(elapsedSec);
-        return {
-          state: "attivo",
-          className: "event-active",
-          startTime: localTimeHM(startDateObj),
-          endTime: localTimeHM(endDateObj),
-          freq: tr.sumFreq / tr.count,
-          db: tr.sumDb / tr.count,
-          duration: Math.max(0, elapsedSec - tr.start)
-        };
-      });
-
-    const closedVisible = closedEvents.slice(-20).reverse().map(ev => ({
-      state: "chiuso",
-      className: "event-closed",
-      startTime: ev.startLocalHM,
-      endTime: ev.endLocalHM,
-      freq: ev.avgFreqHz,
-      db: ev.avgDb,
-      duration: ev.durationSec
-    }));
-
-    // Active band tracks
-    const activeBandRows = Object.values(bandTracks)
-      .filter(tr => tr.lastSeen - tr.start >= Number(document.getElementById("bandMinDuration").value))
-      .map(tr => {
-        const startDateObj = dateFromElapsedSec(tr.start);
-        const endDateObj = dateFromElapsedSec(elapsedSec);
-        return {
-          state: "banda attiva",
-          className: "event-active",
-          startTime: localTimeHM(startDateObj),
-          endTime: localTimeHM(endDateObj),
-          freq: `${tr.lo}-${tr.hi}`,
-          db: tr.sumDb / tr.count,
-          duration: Math.max(0, elapsedSec - tr.start)
-        };
-      });
-
-    // Closed band events
-    const closedBandRows = bandEvents.slice(-20).reverse().map(ev => ({
-      state: "banda",
-      className: "event-closed",
-      startTime: ev.startLocalTime,
-      endTime: ev.endLocalTime,
-      freq: ev.label,
-      db: ev.avgDb,
-      duration: ev.durationSec
-    }));
-
-    const rows = [...activeVisible, ...activeBandRows, ...closedVisible, ...closedBandRows];
-
-    els.eventsTableBody.innerHTML = rows.map(r => `
-      <tr>
-        <td class="${r.className}">${r.state}</td>
-        <td>${r.startTime}</td>
-        <td>${r.endTime}</td>
-        <td>${r.freq.toFixed(2)}</td>
-        <td>${r.db.toFixed(1)}</td>
-        <td>${r.duration.toFixed(1)} s</td>
-      </tr>
-    `).join("");
-
-    els.eventsCountText.textContent = String(closedEvents.length);
-  }
-
-  // ===== AUDIO START/STOP =====
-  async function start() {
-    if (running) return;
-    updateAxisLabels();
-    clearCanvas();
-
-    const p = params();
-
-    try {
-      mediaStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-          channelCount: 1
-        },
-        video: false
-      });
-
-      audioContext = new AudioContext();
-      source = audioContext.createMediaStreamSource(mediaStream);
-
-      // Biquad bandpass filter chain: highpass + lowpass
-      biquadHigh = audioContext.createBiquadFilter();
-      biquadHigh.type = "highpass";
-      biquadHigh.frequency.value = Math.max(20, p.minFreq * 0.7); // slightly below min
-      biquadHigh.Q.value = 0.7;
-
-      biquadLow = audioContext.createBiquadFilter();
-      biquadLow.type = "lowpass";
-      biquadLow.frequency.value = p.maxFreq * 1.3; // slightly above max
-      biquadLow.Q.value = 0.7;
-
-      analyser = audioContext.createAnalyser();
-      analyser.fftSize = p.fftSize;
-      analyser.smoothingTimeConstant = 0.0;
-      // FIX: wide fixed range so getFloatFrequencyData is never clipped.
-      // Visual range (p.minDb/p.maxDb) is used only in dbToColor().
-      analyser.minDecibels = -140;
-      analyser.maxDecibels = 0;
-
-      // Chain: source → highpass → lowpass → analyser
-      source.connect(biquadHigh);
-      biquadHigh.connect(biquadLow);
-      biquadLow.connect(analyser);
-
-      freqData = new Float32Array(analyser.frequencyBinCount);
-
-      running = true;
-      startPerfTime = performance.now();
-      startDate = new Date();
-
-      els.startBtn.disabled = true;
-      els.stopBtn.disabled = false;
-      els.statusText.textContent = "registrazione";
-      els.sampleRateText.textContent = `${audioContext.sampleRate} Hz`;
-      els.resolutionText.textContent = `${(audioContext.sampleRate / analyser.fftSize).toFixed(3)} Hz/bin`;
-      els.filterStatusText.textContent = `HP ${biquadHigh.frequency.value.toFixed(0)} Hz → LP ${biquadLow.frequency.value.toFixed(0)} Hz`;
-
-      // Start sampling timer (independent of rendering)
-      samplingTimer = setInterval(sampleAndProcess, p.frameInterval);
-
-      // Start render loop
-      renderAnimId = requestAnimationFrame(renderLoop);
-
-      // Start autosave
-      startAutosave();
-
-    } catch (err) {
-      console.error(err);
-      alert("Errore accesso microfono: " + err.message);
-      stop();
-    }
-  }
-
-  function stop() {
-    running = false;
-
-    if (samplingTimer) { clearInterval(samplingTimer); samplingTimer = null; }
-    if (renderAnimId) { cancelAnimationFrame(renderAnimId); renderAnimId = null; }
-
-    if (mediaStream) {
-      mediaStream.getTracks().forEach(t => t.stop());
-      mediaStream = null;
-    }
-    if (audioContext) {
-      audioContext.close().catch(() => {});
-      audioContext = null;
-    }
-
-    analyser = null;
-    source = null;
-    biquadHigh = null;
-    biquadLow = null;
-    freqData = null;
-
-    els.startBtn.disabled = false;
-    els.stopBtn.disabled = true;
-    els.statusText.textContent = "fermo";
-    els.filterStatusText.textContent = "-";
-
-    // Final save
-    saveToStorage();
-
-    if (nightModeActive) {
-      exitNightMode();
-    } else {
-      releaseWakeLock();
-    }
-
-    stopAutosave();
-
-    els.exportWaterfallBtn.disabled = waterfallRows.length === 0;
-    els.exportEventsBtn.disabled = closedEvents.length === 0 && activeTracks.length === 0;
-  }
-
-  // ===== SETTINGS CHANGE HANDLER =====
-  function onSettingsChange() {
-    updateAxisLabels();
-
-    if (audioContext && analyser) {
-      const p = params();
-
-      // Update analyser (only here, NOT in the loop)
-      analyser.fftSize = p.fftSize;
-      // Keep wide fixed range — visual range handled in dbToColor() only
-      analyser.minDecibels = -140;
-      analyser.maxDecibels = 0;
-      freqData = new Float32Array(analyser.frequencyBinCount);
-
-      // Update biquad filters
-      if (biquadHigh) biquadHigh.frequency.value = Math.max(20, p.minFreq * 0.7);
-      if (biquadLow) biquadLow.frequency.value = p.maxFreq * 1.3;
-
-      els.resolutionText.textContent = `${(audioContext.sampleRate / analyser.fftSize).toFixed(3)} Hz/bin`;
-      els.filterStatusText.textContent = `HP ${biquadHigh.frequency.value.toFixed(0)} Hz → LP ${biquadLow.frequency.value.toFixed(0)} Hz`;
-
-      // Restart sampling timer with new interval
-      if (samplingTimer) {
-        clearInterval(samplingTimer);
-        samplingTimer = setInterval(sampleAndProcess, p.frameInterval);
-      }
-    }
-  }
-
-  // ===== WAKE LOCK =====
-  async function requestWakeLock() {
-    wakeLockWanted = true;
-    if (!("wakeLock" in navigator)) return;
-    try {
-      wakeLock = await navigator.wakeLock.request("screen");
-      wakeLock.addEventListener("release", () => { wakeLock = null; });
-    } catch (err) { console.warn("Wake Lock error:", err); }
-  }
-
-  async function releaseWakeLock() {
-    wakeLockWanted = false;
-    if (wakeLock) {
-      try { await wakeLock.release(); } catch (e) {}
-      wakeLock = null;
-    }
-  }
-
-  // ===== NIGHT MODE =====
-  async function enterNightMode() {
-    if (!running) await start();
-    if (!running) return;
-
-    nightModeActive = true;
-    document.body.classList.add("night-active");
-    els.nightOverlay.style.display = "block";
-    els.nightModeBtn.textContent = "🌙 Log notturno attivo";
-
-    await requestWakeLock();
-
-    try {
-      if (document.documentElement.requestFullscreen && !document.fullscreenElement) {
-        await document.documentElement.requestFullscreen();
-      }
-    } catch (err) { console.warn("Fullscreen error:", err); }
-  }
-
-  async function exitNightMode() {
-    nightModeActive = false;
-    document.body.classList.remove("night-active");
-    els.nightOverlay.style.display = "none";
-    els.nightModeBtn.textContent = "🌙 Log notturno";
-    await releaseWakeLock();
-    try {
-      if (document.fullscreenElement) await document.exitFullscreen();
-    } catch (e) {}
-  }
-
-  async function toggleNightMode() {
-    if (nightModeActive) await exitNightMode();
-    else await enterNightMode();
-  }
-
-  // ===== AUTO-SAVE (localStorage for events, IndexedDB for waterfall) =====
-  function startAutosave() {
-    stopAutosave();
-    autosaveTimer = setInterval(() => {
-      saveToStorage();
-    }, AUTOSAVE_INTERVAL_MS);
-  }
-
-  function stopAutosave() {
-    if (autosaveTimer) { clearInterval(autosaveTimer); autosaveTimer = null; }
-  }
-
-  function saveToStorage() {
-    try {
-      const sessionData = {
-        savedAt: new Date().toISOString(),
-        startDate: startDate ? startDate.toISOString() : null,
-        closedEvents,
-        activeTracks: activeTracks.map(tr => ({...tr})),
-        nextTrackId,
-        sessionHeatmapData: sessionHeatmapData.slice(-5000) // keep last 5000 for heatmap restore
-      };
-      localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(sessionData));
-      els.lastSaveText.textContent = localTimeHMS(new Date());
-    } catch (e) {
-      console.warn("Auto-save localStorage failed:", e);
-    }
-
-    // Save waterfall to IndexedDB
-    saveWaterfallToIDB();
-  }
-
-  function saveWaterfallToIDB() {
-    if (waterfallRows.length === 0) return;
-
-    const request = indexedDB.open(IDB_NAME, 1);
-    request.onupgradeneeded = (e) => {
-      const db = e.target.result;
-      if (!db.objectStoreNames.contains(IDB_STORE)) {
-        db.createObjectStore(IDB_STORE, { keyPath: "id", autoIncrement: true });
+      if(!d.objectStoreNames.contains('events')){
+        const ev=d.createObjectStore('events',{keyPath:'id'});
+        ev.createIndex('bySession','sessionId',{unique:false});
       }
     };
-    request.onsuccess = (e) => {
-      const db = e.target.result;
-      const tx = db.transaction(IDB_STORE, "readwrite");
-      const store = tx.objectStore(IDB_STORE);
+    req.onsuccess=e=>{ db=e.target.result; res(db); };
+    req.onerror=e=>rej(e.target.error);
+  });
+}
+function dbPut(store,obj){ return new Promise((res,rej)=>{ const tx=db.transaction(store,'readwrite'); tx.objectStore(store).put(obj); tx.oncomplete=res; tx.onerror=e=>rej(e.target.error); }); }
+function dbGet(store,key){ return new Promise((res,rej)=>{ const req=db.transaction(store,'readonly').objectStore(store).get(key); req.onsuccess=()=>res(req.result); req.onerror=e=>rej(e.target.error); }); }
+function dbAll(store){ return new Promise((res,rej)=>{ const req=db.transaction(store,'readonly').objectStore(store).getAll(); req.onsuccess=()=>res(req.result); req.onerror=e=>rej(e.target.error); }); }
+function dbByIdx(store,idx,val){ return new Promise((res,rej)=>{ const req=db.transaction(store,'readonly').objectStore(store).index(idx).getAll(val); req.onsuccess=()=>res(req.result); req.onerror=e=>rej(e.target.error); }); }
+function dbDel(store,key){ return new Promise((res,rej)=>{ const tx=db.transaction(store,'readwrite'); tx.objectStore(store).delete(key); tx.oncomplete=res; tx.onerror=e=>rej(e.target.error); }); }
+function dbDelByIdx(store,idx,val){
+  return new Promise((res,rej)=>{
+    const tx=db.transaction(store,'readwrite');
+    const req=tx.objectStore(store).index(idx).openCursor(IDBKeyRange.only(val));
+    req.onsuccess=e=>{ const c=e.target.result; if(c){c.delete();c.continue();} };
+    tx.oncomplete=res; tx.onerror=e=>rej(e.target.error);
+  });
+}
+function dbBatch(store,objs){
+  return new Promise((res,rej)=>{
+    if(!objs.length){res();return;}
+    const tx=db.transaction(store,'readwrite');
+    const os=tx.objectStore(store);
+    objs.forEach(o=>os.put(o));
+    tx.oncomplete=res; tx.onerror=e=>rej(e.target.error);
+  });
+}
 
-      // Clear and rewrite (simple approach for circular buffer)
-      store.clear();
-      // Store in chunks to avoid transaction timeouts
-      const chunkSize = 500;
-      for (let i = 0; i < waterfallRows.length; i += chunkSize) {
-        const chunk = waterfallRows.slice(i, i + chunkSize);
-        store.put({ id: i, chunk });
-      }
+// ── AUDIO ENGINE ───────────────────────────────────────────────────────────
+let audioCtx=null, analyser=null, sourceNode=null, micStream=null, freqData=null;
+let audioRunning=false;
 
-      tx.oncomplete = () => db.close();
-      tx.onerror = () => db.close();
-    };
-    request.onerror = () => console.warn("IndexedDB open failed");
+async function startAudio(){
+  if(!window.isSecureContext && location.hostname!=='localhost'){
+    showToast('⚠ Serve HTTPS per accedere al microfono.',5000); return false;
+  }
+  if(!navigator.mediaDevices?.getUserMedia){ showToast('Browser non supportato.',4000); return false; }
+  try{
+    micStream=await navigator.mediaDevices.getUserMedia({
+      audio:{ echoCancellation:false, noiseSuppression:false, autoGainControl:false, channelCount:1 },
+      video:false
+    });
+  }catch(err){
+    if(err.name==='NotAllowedError'||err.name==='PermissionDeniedError')
+      showToast('Permesso microfono negato. Abilita nelle impostazioni del browser.',5000);
+    else showToast('Errore microfono: '+err.message,4000);
+    return false;
+  }
+  try{ audioCtx=new(window.AudioContext||window.webkitAudioContext)({sampleRate:8000}); }
+  catch(e){ audioCtx=new(window.AudioContext||window.webkitAudioContext)(); }
+  if(audioCtx.state==='suspended') await audioCtx.resume();
+  analyser=audioCtx.createAnalyser();
+  analyser.fftSize=cfg.fftSize;
+  analyser.smoothingTimeConstant=cfg.smoothLive;
+  sourceNode=audioCtx.createMediaStreamSource(micStream);
+  sourceNode.connect(analyser);
+  freqData=new Float32Array(analyser.frequencyBinCount);
+  audioRunning=true;
+  return true;
+}
+
+function stopAudio(){
+  audioRunning=false;
+  if(sonifyActive) stopSonify();
+  sourceNode?.disconnect(); sourceNode=null;
+  analyser?.disconnect(); analyser=null;
+  micStream?.getTracks().forEach(t=>t.stop()); micStream=null;
+  audioCtx?.close(); audioCtx=null;
+  freqData=null;
+}
+
+function getFreqData(){
+  if(!analyser||!freqData) return null;
+  analyser.getFloatFrequencyData(freqData);
+  return freqData;
+}
+
+// Band energy (dB) per spec §3
+function bandLevelDb(fd,fLow,fHigh,SR,fftSize){
+  const binHz=SR/fftSize;
+  const i0=Math.max(0,Math.round(fLow/binHz));
+  const i1=Math.min(fd.length-1,Math.round(fHigh/binHz));
+  let p=0;
+  for(let i=i0;i<=i1;i++) p+=Math.pow(10,fd[i]/10);
+  return 10*Math.log10(p+1e-12);
+}
+
+// ── SONIFICATION ───────────────────────────────────────────────────────────
+let sonifyOsc=null, sonifyGain=null, sonifyActive=false;
+function startSonify(){
+  if(!audioCtx||sonifyActive) return;
+  sonifyGain=audioCtx.createGain(); sonifyGain.gain.value=0; sonifyGain.connect(audioCtx.destination);
+  sonifyOsc=audioCtx.createOscillator(); sonifyOsc.type='sine'; sonifyOsc.frequency.value=440;
+  sonifyOsc.connect(sonifyGain); sonifyOsc.start(); sonifyActive=true;
+}
+function stopSonify(){
+  if(!sonifyActive) return;
+  sonifyOsc?.stop(); sonifyOsc?.disconnect(); sonifyOsc=null;
+  sonifyGain?.disconnect(); sonifyGain=null; sonifyActive=false;
+}
+function updateSonify(db){
+  if(!sonifyActive||!sonifyGain||!sonifyOsc) return;
+  const norm=Math.max(0,Math.min(1,(db+120)/100));
+  sonifyGain.gain.setTargetAtTime(norm*0.25,audioCtx.currentTime,0.05);
+  sonifyOsc.frequency.setTargetAtTime(200+norm*1800,audioCtx.currentTime,0.05);
+}
+
+// ── LIVE MODE ──────────────────────────────────────────────────────────────
+let liveRunning=false, liveRAF=null, liveFrozen=false;
+let currentBand='B', peakDb=-Infinity;
+let abA=null, abB=null;
+
+const specCanvas=document.getElementById('spectrum-canvas');
+const specCtx=specCanvas.getContext('2d');
+let specW=0, specH=0, specDpr=1;
+
+function resizeSpec(){
+  specDpr=window.devicePixelRatio||1;
+  const wrap=document.getElementById('spectrum-wrap');
+  const w=wrap.clientWidth; const h=Math.min(220,Math.round(w*0.46));
+  specCanvas.width=w*specDpr; specCanvas.height=h*specDpr;
+  specCanvas.style.height=h+'px';
+  specW=w; specH=h;
+}
+
+function drawSpectrum(fd){
+  const ctx=specCtx, W=specW, H=specH, dpr=specDpr;
+  ctx.save(); ctx.scale(dpr,dpr);
+  ctx.fillStyle='#0d0d16'; ctx.fillRect(0,0,W,H);
+  if(!fd||!audioCtx||!analyser){ ctx.restore(); return; }
+
+  const SR=audioCtx.sampleRate, fftSz=analyser.fftSize;
+  const binHz=SR/fftSz, xMax=cfg.specXMax;
+  const dbMin=-120, dbMax=0;
+
+  // Horizontal grid + dB labels
+  ctx.strokeStyle='rgba(255,255,255,.05)'; ctx.lineWidth=1;
+  ctx.fillStyle='rgba(255,255,255,.22)'; ctx.font='9px monospace';
+  for(let db=-100;db<=0;db+=20){
+    const y=H-(db-dbMin)/(dbMax-dbMin)*H;
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
+    ctx.fillText(db+'dB',2,y-2);
   }
 
-  function checkForSavedSession() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY_EVENTS);
-      if (!raw) return;
-      const data = JSON.parse(raw);
-      if (data && data.closedEvents && data.closedEvents.length > 0) {
-        const savedAt = new Date(data.savedAt);
-        const evCount = data.closedEvents.length;
-        els.restoreInfo.textContent = `${evCount} eventi, salvati ${localTimeHMS(savedAt)}`;
-        els.restoreBanner.style.display = "flex";
-      }
-    } catch (e) {
-      console.warn("Could not check saved session:", e);
+  // Vertical grid + Hz labels
+  const freqStep=xMax<=250?50:xMax<=500?100:200;
+  for(let f=freqStep;f<xMax;f+=freqStep){
+    const x=f/xMax*W;
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,.22)';
+    ctx.fillText(f+'Hz',x+2,H-3);
+  }
+
+  // Band highlights
+  const bands=getBands();
+  function hilite(b,color){ const x0=b.low/xMax*W,x1=b.high/xMax*W; ctx.fillStyle=color; ctx.fillRect(x0,0,Math.max(x1-x0,2),H); }
+  hilite(bands.A,'rgba(255,170,0,.09)');
+  hilite(bands.B,'rgba(0,212,170,.09)');
+
+  // Spectrum fill + line
+  const maxBin=Math.min(Math.ceil(xMax/binHz),fd.length-1);
+  ctx.beginPath();
+  let first=true;
+  for(let i=0;i<=maxBin;i++){
+    const x=i*binHz/xMax*W;
+    const y=H-(fd[i]-dbMin)/(dbMax-dbMin)*H;
+    if(first){ctx.moveTo(x,y);first=false;} else ctx.lineTo(x,y);
+  }
+  // Fill under line
+  ctx.lineTo(maxBin*binHz/xMax*W,H); ctx.lineTo(0,H); ctx.closePath();
+  ctx.fillStyle='rgba(0,212,170,.07)'; ctx.fill();
+  ctx.beginPath(); first=true;
+  for(let i=0;i<=maxBin;i++){
+    const x=i*binHz/xMax*W, y=H-(fd[i]-dbMin)/(dbMax-dbMin)*H;
+    if(first){ctx.moveTo(x,y);first=false;} else ctx.lineTo(x,y);
+  }
+  ctx.strokeStyle='#00d4aa'; ctx.lineWidth=1.5; ctx.stroke();
+
+  // Marker lines for band centers
+  function marker(freq,color,label){
+    const x=freq/xMax*W; if(x<0||x>W) return;
+    ctx.save(); ctx.strokeStyle=color; ctx.lineWidth=1.5;
+    ctx.setLineDash([4,3]); ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke();
+    ctx.setLineDash([]); ctx.fillStyle=color; ctx.font='bold 9px monospace'; ctx.fillText(label,x+2,13); ctx.restore();
+  }
+  marker(cfg.bandACenter,'#ffaa44','▲'+cfg.bandACenter);
+  marker(cfg.bandBCenter,'#00ffcc','▲'+cfg.bandBCenter);
+
+  ctx.restore();
+}
+
+function liveTick(){
+  if(!liveRunning){liveRAF=null;return;}
+  const fd=getFreqData();
+  if(!liveFrozen&&fd) drawSpectrum(fd);
+  if(fd&&audioCtx&&analyser){
+    const SR=audioCtx.sampleRate, fftSz=analyser.fftSize;
+    const bands=getBands(), b=bands[currentBand];
+    if(b){
+      const lvl=bandLevelDb(fd,b.low,b.high,SR,fftSz);
+      document.getElementById('live-db').textContent=isFinite(lvl)?lvl.toFixed(1):'---';
+      const pct=Math.max(0,Math.min(100,(lvl+120)/120*100));
+      document.getElementById('level-bar').style.width=pct+'%';
+      if(lvl>peakDb) peakDb=lvl;
+      document.getElementById('level-peak').style.left=Math.max(0,Math.min(100,(peakDb+120)/120*100))+'%';
+      if(sonifyActive) updateSonify(lvl);
     }
   }
+  liveRAF=requestAnimationFrame(liveTick);
+}
 
-  function restoreSession() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY_EVENTS);
-      if (!raw) return;
-      const data = JSON.parse(raw);
+async function startLive(){
+  if(liveRunning) return;
+  if(nightRunning){ showToast('Ferma prima il Log Notturno.',3000); return; }
+  const ok=await startAudio(); if(!ok) return;
+  analyser.smoothingTimeConstant=cfg.smoothLive;
+  liveRunning=true; peakDb=-Infinity;
+  document.getElementById('btn-start').textContent='⬛ Stop';
+  document.getElementById('btn-start').classList.remove('primary');
+  document.getElementById('btn-start').classList.add('danger');
+  ['btn-freeze','btn-reset-peak','btn-sonify','btn-cap-a','btn-cap-b'].forEach(id=>document.getElementById(id).disabled=false);
+  resizeSpec();
+  liveRAF=requestAnimationFrame(liveTick);
+}
 
-      if (data.closedEvents) closedEvents = data.closedEvents;
-      if (data.activeTracks) activeTracks = data.activeTracks;
-      if (data.nextTrackId) nextTrackId = data.nextTrackId;
-      if (data.startDate) startDate = new Date(data.startDate);
+function stopLive(){
+  if(!liveRunning) return;
+  liveRunning=false; liveFrozen=false;
+  if(liveRAF){cancelAnimationFrame(liveRAF);liveRAF=null;}
+  stopAudio();
+  document.getElementById('btn-start').textContent='▶ Avvia';
+  document.getElementById('btn-start').classList.add('primary');
+  document.getElementById('btn-start').classList.remove('danger');
+  ['btn-freeze','btn-reset-peak','btn-sonify','btn-cap-a','btn-cap-b'].forEach(id=>document.getElementById(id).disabled=true);
+  document.getElementById('live-db').textContent='---';
+  document.getElementById('level-bar').style.width='0%';
+  document.getElementById('btn-freeze').textContent='❄ Freeze';
+  document.getElementById('btn-freeze').classList.remove('active-state');
+  document.getElementById('btn-sonify').textContent='🔊 Sonify';
+  document.getElementById('btn-sonify').classList.remove('active-state');
+}
 
-      // Restore heatmap data
-      if (data.sessionHeatmapData) {
-        sessionHeatmapData = data.sessionHeatmapData.map(d => ({
-          ...d,
-          time: new Date(d.time)
-        }));
-        drawSessionHeatmap();
-      }
+// Peak decay
+setInterval(()=>{ if(liveRunning&&isFinite(peakDb)) peakDb=Math.max(peakDb-0.3,-120); },400);
 
-      renderEventsTable(0);
-      els.eventsCountText.textContent = String(closedEvents.length);
-      els.exportEventsBtn.disabled = closedEvents.length === 0;
+// ── NIGHT MODE ─────────────────────────────────────────────────────────────
+let nightRunning=false, nightRAF=null;
+let nightSession=null;
+let framesBuf=[], lastAggSec=0;
+let sampleBuf=[], lastFlush=0;
+let miniData=[];
 
-    } catch (e) {
-      console.warn("Restore failed:", e);
-    }
-    els.restoreBanner.style.display = "none";
+// State machine
+const SM={IDLE:'IDLE',RISING:'RISING',ACTIVE:'ACTIVE',FALLING:'FALLING'};
+let smState=SM.IDLE, smBaseline=-60, smBaselineReady=false;
+let smRiseStart=null, smFallStart=null, smEvStart=null, smPeak=-Infinity;
+let smEvents=[];
+
+const miniCanvas=document.getElementById('night-mini-canvas');
+const miniCtx=miniCanvas.getContext('2d');
+
+function drawMini(){
+  const dpr=window.devicePixelRatio||1;
+  const W=miniCanvas.clientWidth||300, H=miniCanvas.clientHeight||80;
+  miniCanvas.width=W*dpr; miniCanvas.height=H*dpr;
+  miniCtx.scale(dpr,dpr);
+  miniCtx.clearRect(0,0,W,H);
+  if(miniData.length<2) return;
+  const n=miniData.length, dbMin=-120, dbMax=0;
+  miniCtx.beginPath(); miniCtx.strokeStyle='rgba(0,212,170,.75)'; miniCtx.lineWidth=1;
+  miniData.forEach((db,i)=>{
+    const x=i/(n-1)*W, y=H-(db-dbMin)/(dbMax-dbMin)*H;
+    i===0?miniCtx.moveTo(x,y):miniCtx.lineTo(x,y);
+  });
+  miniCtx.stroke();
+  // Events overlay
+  if(nightSession&&smEvents.length){
+    const tMin=nightSession.startedAt/1000, tSpan=(Date.now()/1000)-tMin;
+    smEvents.forEach(ev=>{
+      const x0=(ev.startT-tMin)/tSpan*W, x1=(ev.endT-tMin)/tSpan*W;
+      miniCtx.fillStyle='rgba(255,68,102,.25)'; miniCtx.fillRect(x0,0,Math.max(x1-x0,2),H);
+    });
   }
+}
 
-  function dismissRestore() {
-    els.restoreBanner.style.display = "none";
+function smStep(level, nowSec){
+  const thrOn=smBaseline+cfg.onDb, thrOff=smBaseline+cfg.offDb;
+  // Update baseline when not in ACTIVE state
+  if(smState!==SM.ACTIVE) smBaseline=smBaseline*(1-cfg.baselineAlpha)+level*cfg.baselineAlpha;
+  switch(smState){
+    case SM.IDLE:
+      if(level>thrOn){ smState=SM.RISING; smRiseStart=nowSec; } break;
+    case SM.RISING:
+      if(level<=thrOn){ smState=SM.IDLE; }
+      else if(nowSec-smRiseStart>=cfg.minOnS){
+        smState=SM.ACTIVE; smEvStart=smRiseStart; smPeak=level;
+        setNightState('ATTIVO','var(--red)');
+      } break;
+    case SM.ACTIVE:
+      if(level>smPeak) smPeak=level;
+      if(level<thrOff){ smState=SM.FALLING; smFallStart=nowSec; } break;
+    case SM.FALLING:
+      if(level>=thrOff){ smState=SM.ACTIVE; }
+      else if(nowSec-smFallStart>=cfg.minOffS){
+        const ev={id:uuid(),sessionId:nightSession.id,band:cfg.triggerBand,
+          startT:Math.floor(smEvStart),endT:Math.floor(smFallStart),
+          durationS:Math.floor(smFallStart-smEvStart),peakDb:smPeak};
+        smEvents.push(ev);
+        dbPut('events',ev).catch(()=>{});
+        nightSession.eventsCount=smEvents.length;
+        dbPut('sessions',nightSession).catch(()=>{});
+        document.getElementById('n-events').textContent=smEvents.length;
+        setNightState('IDLE','');
+        smPeak=-Infinity; smState=SM.IDLE;
+      } break;
   }
+}
 
-  // ===== CSV EXPORT =====
-  function downloadText(filename, text) {
-    const blob = new Blob([text], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = filename;
-    document.body.appendChild(a); a.click();
-    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
-  }
+function setNightState(label,color){
+  const el=document.getElementById('n-state');
+  el.textContent=label; el.style.color=color;
+}
 
-  function csvEscape(value) {
-    const s = String(value);
-    if (s.includes(",") || s.includes("\n") || s.includes('"')) {
-      return `"${s.replaceAll('"', '""')}"`;
-    }
-    return s;
-  }
-
-  function exportBandCsv() {
-    const allBandEvents = [...bandEvents];
-    // Include active tracks as open events
-    const elapsedSec = getElapsedSec();
-    for (const tr of Object.values(bandTracks)) {
-      const startDateObj = dateFromElapsedSec(tr.start);
-      const endDateObj = dateFromElapsedSec(elapsedSec);
-      allBandEvents.push({
-        label: tr.label,
-        lo: tr.lo,
-        hi: tr.hi,
-        startSec: tr.start,
-        endSec: elapsedSec,
-        durationSec: elapsedSec - tr.start,
-        avgDb: tr.sumDb / tr.count,
-        maxDb: tr.maxDb,
-        samples: tr.count,
-        startLocalDateTime: localDateTimeString(startDateObj),
-        endLocalDateTime: localDateTimeString(endDateObj),
-        startLocalTime: localTimeHMS(startDateObj),
-        endLocalTime: localTimeHMS(endDateObj),
-        startIso: startDateObj ? startDateObj.toISOString() : "",
-        endIso: endDateObj ? endDateObj.toISOString() : ""
+async function nightFrame(){
+  if(!nightRunning) return;
+  const fd=getFreqData();
+  if(!fd||!audioCtx||!analyser) return;
+  const SR=audioCtx.sampleRate, fftSz=analyser.fftSize;
+  const bands=getBands(), nowSec=Date.now()/1000;
+  const lvlA=bandLevelDb(fd,bands.A.low,bands.A.high,SR,fftSz);
+  const lvlB=bandLevelDb(fd,bands.B.low,bands.B.high,SR,fftSz);
+  const lvlBroad=bandLevelDb(fd,bands.broad.low,bands.broad.high,SR,fftSz);
+  framesBuf.push({a:lvlA,b:lvlB,broad:lvlBroad,t:nowSec});
+  const secNow=Math.floor(nowSec);
+  if(secNow>lastAggSec&&framesBuf.length>0){
+    lastAggSec=secNow;
+    const n=framesBuf.length;
+    function avgBand(key){ let p=0; framesBuf.forEach(f=>p+=Math.pow(10,f[key]/10)); return 10*Math.log10(p/n+1e-12); }
+    const aA=avgBand('a'), aB=avgBand('b'), aBroad=avgBand('broad');
+    framesBuf=[];
+    const trigLevel={A:aA,B:aB,broad:aBroad}[cfg.triggerBand];
+    if(!smBaselineReady){ smBaseline=trigLevel; smBaselineReady=true; }
+    smStep(trigLevel,secNow);
+    miniData.push(trigLevel);
+    if(miniData.length>3600) miniData.shift();
+    document.getElementById('n-level').textContent=isFinite(trigLevel)?trigLevel.toFixed(1)+'dB':'---';
+    document.getElementById('n-baseline').textContent=isFinite(smBaseline)?smBaseline.toFixed(1)+'dB':'---';
+    sampleBuf.push({sessionId:nightSession.id,t:secNow,a:aA,b:aB,broad:aBroad});
+    const now=Date.now();
+    if(now-lastFlush>10000||sampleBuf.length>=10){
+      lastFlush=now;
+      const buf=sampleBuf.splice(0);
+      dbBatch('samples',buf).catch(err=>{
+        if(err.name==='QuotaExceededError') showToast('⚠ Storage pieno! Esporta o elimina sessioni vecchie.',5000);
       });
     }
+    drawMini();
+  }
+}
 
-    if (allBandEvents.length === 0) return;
+function nightLoop(){
+  if(!nightRunning){nightRAF=null;return;}
+  nightFrame();
+  nightRAF=requestAnimationFrame(nightLoop);
+}
 
-    const header = [
-      "band_hz", "lo_hz", "hi_hz",
-      "start_local_datetime", "end_local_datetime",
-      "start_hh_mm_ss", "end_hh_mm_ss",
-      "start_iso", "end_iso",
-      "start_s", "end_s", "duration_s",
-      "avg_db", "max_db", "samples"
-    ];
-    const lines = [header.join(",")];
+// Night clock
+setInterval(()=>{
+  document.getElementById('night-clock').textContent=new Date().toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  if(nightRunning&&nightSession){
+    const el=Math.floor(Date.now()/1000-nightSession.startedAt/1000);
+    const h=Math.floor(el/3600),m=Math.floor((el%3600)/60),s=el%60;
+    document.getElementById('night-elapsed').textContent=
+      `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  }
+},1000);
 
-    for (const ev of allBandEvents) {
-      lines.push([
-        ev.label, ev.lo, ev.hi,
-        ev.startLocalDateTime, ev.endLocalDateTime,
-        ev.startLocalTime, ev.endLocalTime,
-        ev.startIso, ev.endIso,
-        ev.startSec.toFixed(3), ev.endSec.toFixed(3), ev.durationSec.toFixed(3),
-        ev.avgDb.toFixed(3), ev.maxDb.toFixed(3), ev.samples
-      ].map(csvEscape).join(","));
+let wakeLock=null;
+async function keepAwake(){ if('wakeLock' in navigator) try{ wakeLock=await navigator.wakeLock.request('screen'); }catch(e){} }
+
+async function startNight(){
+  if(nightRunning) return;
+  if(liveRunning) stopLive();
+  const ok=await startAudio(); if(!ok) return;
+  analyser.smoothingTimeConstant=cfg.smoothLog;
+  nightSession={
+    id:uuid(),
+    label:`Notte ${new Date().toLocaleDateString('it-IT')}`,
+    startedAt:Date.now(), endedAt:null,
+    sampleRate:audioCtx.sampleRate, fftSize:analyser.fftSize,
+    bands:getBands(), triggerBand:cfg.triggerBand,
+    thresholds:{onDb:cfg.onDb,offDb:cfg.offDb,minOnS:cfg.minOnS,minOffS:cfg.minOffS},
+    eventsCount:0
+  };
+  await dbPut('sessions',nightSession);
+  // Reset SM
+  smState=SM.IDLE; smBaseline=-60; smBaselineReady=false;
+  smRiseStart=smFallStart=smEvStart=null; smPeak=-Infinity; smEvents=[];
+  framesBuf=[]; lastAggSec=0; sampleBuf=[]; lastFlush=Date.now(); miniData=[];
+  nightRunning=true;
+  // UI
+  document.getElementById('btn-night-start').style.display='none';
+  document.getElementById('btn-night-stop').style.display='';
+  document.getElementById('night-rec-row').style.display='flex';
+  document.getElementById('night-idle-msg').style.display='none';
+  document.getElementById('night-stats').style.display='grid';
+  document.getElementById('night-mini-canvas').style.display='block';
+  document.getElementById('n-events').textContent='0';
+  setNightState('IDLE','');
+  await keepAwake();
+  nightRAF=requestAnimationFrame(nightLoop);
+}
+
+async function stopNight(){
+  if(!nightRunning) return;
+  nightRunning=false;
+  if(nightRAF){cancelAnimationFrame(nightRAF);nightRAF=null;}
+  if(sampleBuf.length) await dbBatch('samples',sampleBuf.splice(0)).catch(()=>{});
+  if(nightSession){ nightSession.endedAt=Date.now(); nightSession.eventsCount=smEvents.length; await dbPut('sessions',nightSession); nightSession=null; }
+  try{ await wakeLock?.release(); }catch(e){} wakeLock=null;
+  stopAudio();
+  document.getElementById('btn-night-start').style.display='';
+  document.getElementById('btn-night-stop').style.display='none';
+  document.getElementById('night-rec-row').style.display='none';
+  document.getElementById('night-idle-msg').style.display='block';
+  document.getElementById('night-stats').style.display='none';
+  document.getElementById('night-mini-canvas').style.display='none';
+  showToast('Sessione salvata ✓');
+}
+
+// ── SUMMARY ────────────────────────────────────────────────────────────────
+let curSessionId=null;
+
+async function loadSessions(){
+  const sessions=await dbAll('sessions');
+  sessions.sort((a,b)=>b.startedAt-a.startedAt);
+  const list=document.getElementById('sessions-list');
+  if(!sessions.length){
+    list.innerHTML='<div style="color:var(--text2);font-size:14px;padding:20px;text-align:center">Nessuna sessione salvata.</div>';
+    return;
+  }
+  list.innerHTML='';
+  sessions.forEach(s=>{
+    const el=document.createElement('div');
+    el.className='session-item';
+    const start=new Date(s.startedAt);
+    const dur=s.endedAt?fmtDur(Math.floor((s.endedAt-s.startedAt)/1000)):'in corso';
+    el.innerHTML=`<div><div class="s-name">${s.label}</div><div class="s-meta">${start.toLocaleDateString('it-IT')} ${fmtTime(start)} · ${dur}</div></div><div class="s-badge">${s.eventsCount} eventi</div>`;
+    el.onclick=()=>openSession(s.id);
+    list.appendChild(el);
+  });
+}
+
+const tlCanvas=document.getElementById('timeline-canvas');
+const tlCtx=tlCanvas.getContext('2d');
+
+async function openSession(id){
+  curSessionId=id;
+  const session=await dbGet('sessions',id);
+  const samples=(await dbByIdx('samples','bySession',id)).sort((a,b)=>a.t-b.t);
+  const events=(await dbByIdx('events','bySession',id)).sort((a,b)=>a.startT-b.startT);
+  document.getElementById('sessions-list').style.display='none';
+  document.getElementById('session-detail').style.display='flex';
+  document.getElementById('detail-title').textContent=session.label;
+  drawTimeline(session,samples,events);
+  // Stats
+  const totalDur=session.endedAt?Math.floor((session.endedAt-session.startedAt)/1000):0;
+  const noisyS=events.reduce((s,e)=>s+e.durationS,0);
+  const strongest=events.reduce((m,e)=>e.peakDb>m?e.peakDb:m,-Infinity);
+  const longest=events.reduce((m,e)=>e.durationS>m?e.durationS:m,0);
+  document.getElementById('summary-stats').innerHTML=`
+    <div class="stat-item"><div class="s-lbl">Durata</div><div class="s-val">${fmtDur(totalDur)}</div></div>
+    <div class="stat-item"><div class="s-lbl">Campioni</div><div class="s-val">${samples.length}</div></div>
+    <div class="stat-item"><div class="s-lbl">N. eventi</div><div class="s-val">${events.length}</div></div>
+    <div class="stat-item"><div class="s-lbl">Min. rumorosi</div><div class="s-val">${Math.round(noisyS/60)}'</div></div>
+    <div class="stat-item"><div class="s-lbl">Evento più lungo</div><div class="s-val">${fmtDur(longest)}</div></div>
+    <div class="stat-item"><div class="s-lbl">Picco massimo</div><div class="s-val">${isFinite(strongest)?strongest.toFixed(1)+'dB':'—'}</div></div>`;
+  // Events table
+  const tbody=document.getElementById('events-tbody');
+  tbody.innerHTML='';
+  if(!events.length){
+    tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--text2);padding:16px">Nessun evento rilevato</td></tr>';
+  } else {
+    events.forEach((ev,i)=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td>${i+1}</td><td style="white-space:nowrap">${fmtTime(ev.startT*1000)}</td><td style="white-space:nowrap">${fmtTime(ev.endT*1000)}</td><td>${fmtDur(ev.durationS)}</td><td style="font-family:monospace">${ev.peakDb.toFixed(1)}</td><td>${ev.band}</td>`;
+      tbody.appendChild(tr);
+    });
+  }
+  document.getElementById('btn-csv-events').onclick=()=>exportEventsCsv(session,events);
+  document.getElementById('btn-csv-samples').onclick=()=>exportSamplesCsv(session,samples);
+  document.getElementById('btn-json').onclick=()=>exportJson(session,samples,events);
+  document.getElementById('btn-del-session').onclick=()=>deleteSession(id);
+}
+
+function drawTimeline(session,samples,events){
+  const dpr=window.devicePixelRatio||1;
+  const W=tlCanvas.getBoundingClientRect().width||window.innerWidth-32;
+  const H=130;
+  tlCanvas.width=W*dpr; tlCanvas.height=H*dpr; tlCanvas.style.height=H+'px';
+  const ctx=tlCtx; ctx.save(); ctx.scale(dpr,dpr);
+  ctx.fillStyle='#111118'; ctx.fillRect(0,0,W,H);
+  if(samples.length<2){ ctx.restore(); return; }
+  const tMin=samples[0].t, tMax=samples[samples.length-1].t, tSpan=Math.max(1,tMax-tMin);
+  const dbMin=-120, dbMax=0;
+  const key=cfg.triggerBand==='broad'?'broad':cfg.triggerBand.toLowerCase();
+  // Event regions
+  events.forEach(ev=>{
+    const x0=(ev.startT-tMin)/tSpan*W, x1=(ev.endT-tMin)/tSpan*W;
+    ctx.fillStyle='rgba(255,170,0,.18)'; ctx.fillRect(x0,0,Math.max(x1-x0,2),H);
+  });
+  // Grid
+  ctx.strokeStyle='rgba(255,255,255,.05)'; ctx.lineWidth=1;
+  for(let db=-100;db<=0;db+=20){ const y=H-(db-dbMin)/(dbMax-dbMin)*H; ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+  // Downsample
+  const step=Math.max(1,Math.floor(samples.length/(W*1.5)));
+  const pts=samples.filter((_,i)=>i%step===0);
+  // Line
+  ctx.beginPath(); ctx.strokeStyle='#00d4aa'; ctx.lineWidth=1.2;
+  pts.forEach((s,i)=>{
+    const x=(s.t-tMin)/tSpan*W, y=H-(s[key]-dbMin)/(dbMax-dbMin)*H;
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  }); ctx.stroke();
+  // Time labels
+  ctx.fillStyle='rgba(255,255,255,.35)'; ctx.font='9px monospace';
+  for(let i=0;i<=4;i++){ const t=tMin+tSpan*i/4; ctx.fillText(fmtTime(t*1000),(i/4)*W+2,H-3); }
+  ctx.restore();
+}
+
+function exportEventsCsv(session,events){
+  const lines=['index,start_iso,end_iso,duration_s,peak_db,band'];
+  events.forEach((ev,i)=>lines.push(`${i+1},${fmtIso(ev.startT)},${fmtIso(ev.endT)},${ev.durationS},${ev.peakDb.toFixed(2)},${ev.band}Hz`));
+  dl(new Blob([lines.join('\n')],{type:'text/csv'}),`${session.label.replace(/\W+/g,'_')}_events.csv`);
+}
+function exportSamplesCsv(session,samples){
+  const lines=['t_iso,t_epoch,band_a_db,band_b_db,broad_db'];
+  samples.forEach(s=>lines.push(`${fmtIso(s.t)},${s.t},${s.a?.toFixed(2)||''},${s.b?.toFixed(2)||''},${s.broad?.toFixed(2)||''}`));
+  dl(new Blob([lines.join('\n')],{type:'text/csv'}),`${session.label.replace(/\W+/g,'_')}_samples.csv`);
+}
+function exportJson(session,samples,events){
+  dl(new Blob([JSON.stringify({session,samples,events},null,2)],{type:'application/json'}),`${session.label.replace(/\W+/g,'_')}.json`);
+}
+async function deleteSession(id){
+  if(!confirm('Eliminare questa sessione e tutti i suoi dati?')) return;
+  await dbDel('sessions',id);
+  await dbDelByIdx('samples','bySession',id);
+  await dbDelByIdx('events','bySession',id);
+  document.getElementById('session-detail').style.display='none';
+  document.getElementById('sessions-list').style.display='flex';
+  await loadSessions();
+  showToast('Sessione eliminata');
+}
+
+// ── SETTINGS UI ────────────────────────────────────────────────────────────
+function populateSettings(){
+  document.getElementById('s-ac').value=cfg.bandACenter;
+  document.getElementById('s-aw').value=cfg.bandAWidth;
+  document.getElementById('s-bc').value=cfg.bandBCenter;
+  document.getElementById('s-bw').value=cfg.bandBWidth;
+  document.getElementById('s-bl').value=cfg.broadLow;
+  document.getElementById('s-bh').value=cfg.broadHigh;
+  document.getElementById('s-trig').value=cfg.triggerBand;
+  document.getElementById('s-on').value=cfg.onDb;
+  document.getElementById('s-off').value=cfg.offDb;
+  document.getElementById('s-minon').value=cfg.minOnS;
+  document.getElementById('s-minoff').value=cfg.minOffS;
+  document.getElementById('s-alpha').value=cfg.baselineAlpha;
+  document.getElementById('s-fft').value=cfg.fftSize;
+  document.getElementById('s-sl').value=cfg.smoothLive;
+  document.getElementById('s-slog').value=cfg.smoothLog;
+  document.getElementById('s-xmax').value=cfg.specXMax;
+  document.getElementById('s-sonify-toggle').classList.toggle('on',!!cfg.sonification);
+}
+function collectSettings(){
+  cfg.bandACenter=+document.getElementById('s-ac').value;
+  cfg.bandAWidth=+document.getElementById('s-aw').value;
+  cfg.bandBCenter=+document.getElementById('s-bc').value;
+  cfg.bandBWidth=+document.getElementById('s-bw').value;
+  cfg.broadLow=+document.getElementById('s-bl').value;
+  cfg.broadHigh=+document.getElementById('s-bh').value;
+  cfg.triggerBand=document.getElementById('s-trig').value;
+  cfg.onDb=+document.getElementById('s-on').value;
+  cfg.offDb=+document.getElementById('s-off').value;
+  cfg.minOnS=+document.getElementById('s-minon').value;
+  cfg.minOffS=+document.getElementById('s-minoff').value;
+  cfg.baselineAlpha=+document.getElementById('s-alpha').value;
+  cfg.fftSize=+document.getElementById('s-fft').value;
+  cfg.smoothLive=+document.getElementById('s-sl').value;
+  cfg.smoothLog=+document.getElementById('s-slog').value;
+  cfg.specXMax=+document.getElementById('s-xmax').value;
+}
+
+// ── NAVIGATION ─────────────────────────────────────────────────────────────
+function switchTab(id){
+  document.querySelectorAll('.tab-content').forEach(el=>el.classList.remove('active'));
+  document.querySelectorAll('.tab-nav button').forEach(el=>el.classList.remove('active'));
+  document.getElementById('tab-'+id)?.classList.add('active');
+  document.querySelector(`.tab-nav button[data-tab="${id}"]`)?.classList.add('active');
+  if(id==='summary'){
+    loadSessions();
+    document.getElementById('sessions-list').style.display='flex';
+    document.getElementById('session-detail').style.display='none';
+  }
+  if(id==='settings') populateSettings();
+}
+
+// ── BATTERY ────────────────────────────────────────────────────────────────
+async function initBattery(){
+  if(!navigator.getBattery) return;
+  const bat=await navigator.getBattery().catch(()=>null);
+  if(!bat) return;
+  const update=()=>{
+    const pct=Math.round(bat.level*100);
+    document.getElementById('battery-pct').textContent=pct+'% '+(bat.charging?'⚡':'');
+    document.getElementById('battery-display').style.display='flex';
+  };
+  update();
+  bat.addEventListener('levelchange',update);
+  bat.addEventListener('chargingchange',update);
+}
+
+// ── INIT ───────────────────────────────────────────────────────────────────
+async function init(){
+  loadCfg();
+  if(!window.isSecureContext && location.hostname!=='localhost')
+    showToast('⚠ Contesto non sicuro: il microfono potrebbe non funzionare.',6000);
+
+  await openDb();
+  initBattery();
+
+  // Tab navigation
+  document.querySelectorAll('.tab-nav button').forEach(btn=>btn.addEventListener('click',()=>switchTab(btn.dataset.tab)));
+
+  // Live controls
+  document.getElementById('btn-start').addEventListener('click',()=>liveRunning?stopLive():startLive());
+  document.getElementById('btn-freeze').addEventListener('click',function(){
+    liveFrozen=!liveFrozen;
+    this.textContent=liveFrozen?'▶ Unfreeze':'❄ Freeze';
+    this.classList.toggle('active-state',liveFrozen);
+  });
+  document.getElementById('btn-reset-peak').addEventListener('click',()=>{peakDb=-Infinity;});
+  document.getElementById('btn-sonify').addEventListener('click',function(){
+    if(sonifyActive){stopSonify();this.textContent='🔊 Sonify';this.classList.remove('active-state');}
+    else{startSonify();this.textContent='🔇 Stop';this.classList.add('active-state');}
+  });
+  document.querySelectorAll('.band-btn').forEach(btn=>btn.addEventListener('click',()=>{
+    document.querySelectorAll('.band-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active'); currentBand=btn.dataset.band; peakDb=-Infinity;
+    const bands=getBands();
+    document.getElementById('live-band-label').textContent=bands[currentBand]?.label||currentBand;
+  }));
+  document.getElementById('btn-cap-a').addEventListener('click',()=>{
+    if(!freqData||!audioCtx) return;
+    const bands=getBands(),b=bands[currentBand];
+    abA=bandLevelDb(freqData,b.low,b.high,audioCtx.sampleRate,analyser.fftSize);
+    document.getElementById('ab-a').textContent=abA.toFixed(1);
+    updateDiff();
+  });
+  document.getElementById('btn-cap-b').addEventListener('click',()=>{
+    if(!freqData||!audioCtx) return;
+    const bands=getBands(),b=bands[currentBand];
+    abB=bandLevelDb(freqData,b.low,b.high,audioCtx.sampleRate,analyser.fftSize);
+    document.getElementById('ab-b').textContent=abB.toFixed(1);
+    updateDiff();
+  });
+  function updateDiff(){
+    if(abA!=null&&abB!=null){
+      const d=abB-abA;
+      document.getElementById('ab-diff').textContent=(d>0?'+':'')+d.toFixed(1);
     }
-
-    const stamp = new Date().toISOString().replaceAll(":", "-");
-    downloadText(`band_events_${stamp}.csv`, lines.join("\n"));
   }
 
-  function exportTargetCsv() {
-    if (targetRows.length === 0) return;
-    const freqs = getTargetFreqs();
+  // Night controls
+  document.getElementById('btn-night-start').addEventListener('click',startNight);
+  document.getElementById('btn-night-stop').addEventListener('click',stopNight);
 
-    const header = ["iso_time", "elapsed_s", ...freqs.map(f => `db_${f}hz`)];
-    const lines = [header.join(",")];
+  // Summary controls
+  document.getElementById('btn-refresh').addEventListener('click',loadSessions);
+  document.getElementById('btn-back').addEventListener('click',()=>{
+    document.getElementById('session-detail').style.display='none';
+    document.getElementById('sessions-list').style.display='flex';
+  });
 
-    for (const row of targetRows) {
-      const values = [
-        row.isoTime,
-        row.elapsedSec.toFixed(3),
-        ...freqs.map(f => {
-          const v = row[f];
-          return (v !== null && v !== undefined && Number.isFinite(v)) ? v.toFixed(3) : "";
-        })
-      ];
-      lines.push(values.map(csvEscape).join(","));
+  // Settings
+  document.getElementById('s-sonify-toggle').addEventListener('click',function(){
+    cfg.sonification=!cfg.sonification;
+    this.classList.toggle('on',cfg.sonification);
+  });
+  document.getElementById('btn-save-settings').addEventListener('click',()=>{
+    collectSettings(); saveCfg();
+    if(analyser){
+      analyser.fftSize=cfg.fftSize;
+      freqData=new Float32Array(analyser.frequencyBinCount);
+      if(liveRunning) analyser.smoothingTimeConstant=cfg.smoothLive;
+      else if(nightRunning) analyser.smoothingTimeConstant=cfg.smoothLog;
     }
+    const bands=getBands();
+    document.getElementById('live-band-label').textContent=bands[currentBand]?.label||currentBand;
+    showToast('Impostazioni salvate ✓');
+  });
 
-    const stamp = new Date().toISOString().replaceAll(":", "-");
-    downloadText(`target_freqs_${stamp}.csv`, lines.join("\n"));
-  }
-
-  function exportWaterfallCsv() {
-    if (waterfallRows.length === 0) return;
-    const first = waterfallRows[0];
-    const header = ["iso_time", "elapsed_s", ...first.bins.map(b => `db_${b.freq.toFixed(3)}Hz`)];
-    const lines = [header.map(csvEscape).join(",")];
-
-    for (const row of waterfallRows) {
-      const values = [
-        row.isoTime,
-        row.elapsedSec.toFixed(3),
-        ...row.bins.map(b => Number.isFinite(b.db) ? b.db.toFixed(3) : "")
-      ];
-      lines.push(values.map(csvEscape).join(","));
-    }
-
-    const stamp = new Date().toISOString().replaceAll(":", "-");
-    downloadText(`waterfall_${stamp}.csv`, lines.join("\n"));
-  }
-
-  function exportEventsCsv() {
-    const elapsedSec = getElapsedSec();
-    const rows = [];
-
-    for (const ev of closedEvents) {
-      rows.push({
-        id: ev.id, state: "closed",
-        startLocalHM: ev.startLocalHM, endLocalHM: ev.endLocalHM,
-        startLocalTime: ev.startLocalTime, endLocalTime: ev.endLocalTime,
-        startLocalDateTime: ev.startLocalDateTime, endLocalDateTime: ev.endLocalDateTime,
-        startIso: ev.startIso, endIso: ev.endIso,
-        startSec: ev.startSec, endSec: ev.endSec, durationSec: ev.durationSec,
-        avgFreqHz: ev.avgFreqHz, avgDb: ev.avgDb, maxDb: ev.maxDb, samples: ev.samples
-      });
-    }
-
-    for (const tr of activeTracks) {
-      const endSec = Math.max(tr.lastSeen, elapsedSec);
-      const durationSec = endSec - tr.start;
-      const startDateObj = dateFromElapsedSec(tr.start);
-      const endDateObj = dateFromElapsedSec(endSec);
-      rows.push({
-        id: tr.id, state: "active",
-        startLocalHM: localTimeHM(startDateObj), endLocalHM: localTimeHM(endDateObj),
-        startLocalTime: localTimeHMS(startDateObj), endLocalTime: localTimeHMS(endDateObj),
-        startLocalDateTime: localDateTimeString(startDateObj), endLocalDateTime: localDateTimeString(endDateObj),
-        startIso: startDateObj ? startDateObj.toISOString() : "",
-        endIso: endDateObj ? endDateObj.toISOString() : "",
-        startSec: tr.start, endSec, durationSec,
-        avgFreqHz: tr.sumFreq / tr.count, avgDb: tr.sumDb / tr.count,
-        maxDb: tr.maxDb, samples: tr.count
-      });
-    }
-
-    if (rows.length === 0) return;
-
-    const header = [
-      "id", "state", "start_hh_mm", "end_hh_mm", "start_hh_mm_ss", "end_hh_mm_ss",
-      "start_local_datetime", "end_local_datetime", "start_iso", "end_iso",
-      "start_s", "end_s", "duration_s", "avg_freq_hz", "avg_db", "max_db", "samples"
-    ];
-    const lines = [header.join(",")];
-
-    for (const r of rows) {
-      lines.push([
-        r.id, r.state, r.startLocalHM, r.endLocalHM, r.startLocalTime, r.endLocalTime,
-        r.startLocalDateTime, r.endLocalDateTime, r.startIso, r.endIso,
-        r.startSec.toFixed(3), r.endSec.toFixed(3), r.durationSec.toFixed(3),
-        r.avgFreqHz.toFixed(3), r.avgDb.toFixed(3), r.maxDb.toFixed(3), r.samples
-      ].map(csvEscape).join(","));
-    }
-
-    const stamp = new Date().toISOString().replaceAll(":", "-");
-    downloadText(`events_${stamp}.csv`, lines.join("\n"));
-  }
-
-  // ===== CLEAR =====
-  function clearData() {
-    waterfallRows = [];
-    sessionHeatmapData = [];
-    targetRows = [];
-    bandTracks = {};
-    bandEvents = [];
-    activeTracks = [];
-    closedEvents = [];
-    nextTrackId = 1;
-
-    clearCanvas();
-    renderEventsTable(0);
-
-    els.elapsedText.textContent = "0.0 s";
-    els.currentPeakText.textContent = "-";
-    els.eventsCountText.textContent = "0";
-    els.lastSaveText.textContent = "-";
-    els.exportWaterfallBtn.disabled = true;
-    els.exportEventsBtn.disabled = true;
-    els.exportTargetBtn.disabled = true;
-    els.exportBandBtn.disabled = true;
-    els.targetLogText.textContent = "0 campioni";
-    els.bandEventsCountText.textContent = "0";
-
-    // Clear storage
-    localStorage.removeItem(STORAGE_KEY_EVENTS);
-    try {
-      indexedDB.deleteDatabase(IDB_NAME);
-    } catch (e) {}
-  }
-
-  // ===== EVENT LISTENERS =====
-  els.startBtn.addEventListener("click", start);
-  els.stopBtn.addEventListener("click", stop);
-  els.exportWaterfallBtn.addEventListener("click", exportWaterfallCsv);
-  els.exportEventsBtn.addEventListener("click", exportEventsCsv);
-  els.exportTargetBtn.addEventListener("click", exportTargetCsv);
-  els.exportBandBtn.addEventListener("click", exportBandCsv);
-  els.clearBtn.addEventListener("click", clearData);
-  els.nightModeBtn.addEventListener("click", toggleNightMode);
-  els.restoreYes.addEventListener("click", restoreSession);
-  els.restoreNo.addEventListener("click", dismissRestore);
-
-  els.nightOverlay.addEventListener("pointerdown", async () => {
-    await exitNightMode();
-  }, { passive: true });
-
-  // Visibility change: re-request wake lock + save
-  document.addEventListener("visibilitychange", async () => {
-    if (document.visibilityState === "visible") {
-      if (wakeLockWanted && nightModeActive && running) {
-        await requestWakeLock();
-      }
+  // Visibility / background detection
+  document.addEventListener('visibilitychange',async()=>{
+    const warn=document.getElementById('night-bg-warn');
+    if(document.visibilityState==='visible'){
+      warn.style.display='none';
+      if(nightRunning) await keepAwake();
     } else {
-      // Save when page goes to background
-      if (running) saveToStorage();
+      if(nightRunning) warn.style.display='block';
     }
   });
 
-  // Settings change listeners
-  for (const id of [
-    "minFreq", "maxFreq", "fftSize", "frameInterval",
-    "minDb", "maxDb", "thresholdDb", "minEventDuration",
-    "matchToleranceHz", "holdSeconds", "peakProminence",
-    "bandDefs", "bandThresholdDb", "bandMinDuration", "bandHoldSeconds"
-  ]) {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener("change", onSettingsChange);
+  window.addEventListener('resize',()=>{ if(liveRunning) resizeSpec(); });
+
+  // Init spectrum canvas size
+  resizeSpec();
+  document.getElementById('live-band-label').textContent=getBands()[currentBand]?.label||currentBand;
+
+  // Recover interrupted session
+  const allSessions=await dbAll('sessions');
+  const interrupted=allSessions.find(s=>!s.endedAt);
+  if(interrupted){
+    const ok=confirm(`Sessione interrotta trovata: "${interrupted.label}".\nSegnarla come terminata?`);
+    if(ok){ interrupted.endedAt=Date.now(); await dbPut('sessions',interrupted); showToast('Sessione recuperata'); }
   }
+}
 
-  // ===== INIT =====
-  updateAxisLabels();
-  clearCanvas();
-  checkForSavedSession();
-
-})();
+init();
 </script>
 </body>
 </html>
