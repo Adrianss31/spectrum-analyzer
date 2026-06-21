@@ -254,10 +254,13 @@ html,body{height:100%;overflow:hidden;font-family:system-ui,-apple-system,sans-s
     <canvas id="night-mini-canvas" style="display:none;background:rgba(255,255,255,.03);border-radius:8px"></canvas>
     <div class="night-banner">⚡ Tieni il telefono in carica e l'app in primo piano.<br>Su iOS, bloccare lo schermo interrompe la registrazione.</div>
     <div id="night-bg-warn">⚠ App andata in background — possibile interruzione della registrazione.</div>
-    <div class="btn-row" style="justify-content:center;width:100%">
+    <div class="btn-row" style="justify-content:center;width:100%;flex-wrap:wrap">
       <button class="btn primary" id="btn-night-start" style="font-size:15px;padding:14px 28px">🌙 Avvia Log Notturno</button>
       <button class="btn danger" id="btn-night-stop" style="font-size:15px;padding:14px 28px;display:none">⬛ Stop</button>
     </div>
+    <button class="btn warning" id="btn-force-event" style="display:none;width:100%;font-size:14px;padding:12px">
+      ⚡ Il rumore c'è già — registra da adesso e aspetta la fine
+    </button>
     <div style="font-size:11px;color:#333;text-align:center">Banda e soglie di trigger: Impostazioni</div>
   </div>
 </div>
@@ -788,6 +791,31 @@ function smStepBand(sm, level, nowSec){
   }
 }
 
+function forceEventStart(){
+  if(!nightRunning||!audioCtx||!analyser) return;
+  const fd=getFreqData(); if(!fd) return;
+  const SR=audioCtx.sampleRate, fftSz=analyser.fftSize;
+  const bands=getBands(), nowSec=Date.now()/1000;
+  const lvls={
+    A:    bandLevelDb(fd,bands.A.low,    bands.A.high,    SR,fftSz),
+    B:    bandLevelDb(fd,bands.B.low,    bands.B.high,    SR,fftSz),
+    broad:bandLevelDb(fd,bands.broad.low,bands.broad.high,SR,fftSz)
+  };
+  BAND_KEYS.forEach(k=>{
+    const sm=sms[k]; if(!sm) return;
+    sm.inWarmup=false; sm.warmupLeft=0;
+    // Baseline artificialmente bassa: l'app ora aspetta solo che il livello SCENDA
+    // thrOff = baseline + offDb deve essere sotto il livello di silenzio atteso
+    sm.baseline=lvls[k]-(cfg.onDb*2);
+    sm.state=SM.ACTIVE;
+    sm.evStart=nowSec; sm.riseStart=nowSec; sm.peak=lvls[k];
+    setBandUI(k,'● FORZATO','var(--red)','—');
+  });
+  document.getElementById('btn-force-event').textContent='✓ Evento in corso — aspetto la fine';
+  document.getElementById('btn-force-event').disabled=true;
+  showToast('Evento avviato su tutte le bande — rileverò quando finisce.',3500);
+}
+
 function saveEvent(startT, endT, peak, band){
   const ev={id:uuid(),sessionId:nightSession.id,band,
     startT:Math.floor(startT),endT:Math.floor(endT),
@@ -898,6 +926,7 @@ async function startNight(){
   document.getElementById('night-idle-msg').style.display='none';
   document.getElementById('night-stats').style.display='grid';
   document.getElementById('night-mini-canvas').style.display='block';
+  document.getElementById('btn-force-event').style.display='';
   document.getElementById('n-events').textContent='0';
   BAND_KEYS.forEach(k=>setBandUI(k,'—','','—'));
   await keepAwake();
@@ -926,6 +955,9 @@ async function stopNight(){
   document.getElementById('night-idle-msg').style.display='block';
   document.getElementById('night-stats').style.display='none';
   document.getElementById('night-mini-canvas').style.display='none';
+  const bfe=document.getElementById('btn-force-event');
+  bfe.style.display='none'; bfe.disabled=false;
+  bfe.textContent='⚡ Il rumore c\'è già — registra da adesso e aspetta la fine';
   showToast('Sessione salvata ✓');
 }
 
@@ -1174,6 +1206,7 @@ async function init(){
   // Night controls
   document.getElementById('btn-night-start').addEventListener('click',startNight);
   document.getElementById('btn-night-stop').addEventListener('click',stopNight);
+  document.getElementById('btn-force-event').addEventListener('click',forceEventStart);
 
   // Summary controls
   document.getElementById('btn-refresh').addEventListener('click',loadSessions);
