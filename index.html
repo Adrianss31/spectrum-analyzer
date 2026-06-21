@@ -645,9 +645,10 @@ let miniData=[];
 
 // State machine
 const SM={IDLE:'IDLE',RISING:'RISING',ACTIVE:'ACTIVE',FALLING:'FALLING'};
-let smState=SM.IDLE, smBaseline=-60, smBaselineReady=false;
+let smState=SM.IDLE, smBaseline=-60;
 let smRiseStart=null, smFallStart=null, smEvStart=null, smPeak=-Infinity;
 let smEvents=[], smStateStart=null;
+let inWarmup=true, warmupLeft=0;
 
 const miniCanvas=document.getElementById('night-mini-canvas');
 const miniCtx=miniCanvas.getContext('2d');
@@ -751,8 +752,17 @@ async function nightFrame(){
     const aA=avgBand('a'), aB=avgBand('b'), aBroad=avgBand('broad');
     framesBuf=[];
     const trigLevel={A:aA,B:aB,broad:aBroad}[cfg.triggerBand];
-    if(!smBaselineReady){ smBaseline=trigLevel; smBaselineReady=true; }
-    smStep(trigLevel,secNow);
+    if(inWarmup){
+      // Convergenza rapida (alpha=0.15) per raggiungere il livello ambientale reale
+      smBaseline=smBaseline*(1-0.15)+trigLevel*0.15;
+      warmupLeft--;
+      setNightState('CALIBR.','var(--text2)');
+      document.getElementById('n-progress').textContent=`${warmupLeft}s`;
+      document.getElementById('n-thron').textContent='—';
+      if(warmupLeft<=0){ inWarmup=false; setNightState('IDLE',''); }
+    } else {
+      smStep(trigLevel,secNow);
+    }
     miniData.push(trigLevel);
     if(miniData.length>3600) miniData.shift();
     document.getElementById('n-level').textContent=isFinite(trigLevel)?trigLevel.toFixed(1)+'dB':'---';
@@ -806,8 +816,9 @@ async function startNight(){
   };
   await dbPut('sessions',nightSession);
   // Reset SM
-  smState=SM.IDLE; smBaseline=-60; smBaselineReady=false;
+  smState=SM.IDLE;
   smRiseStart=smFallStart=smEvStart=null; smPeak=-Infinity; smEvents=[]; smStateStart=null;
+  smBaseline=-60; inWarmup=true; warmupLeft=10;
   framesBuf=[]; lastAggSec=0; sampleBuf=[]; lastFlush=Date.now(); miniData=[];
   nightRunning=true;
   // UI
