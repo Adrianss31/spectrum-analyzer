@@ -85,7 +85,7 @@ html,body{height:100%;overflow:hidden;font-family:system-ui,-apple-system,sans-s
 .night-rec{display:flex;align-items:center;gap:8px;font-size:15px;color:var(--red);font-weight:600;letter-spacing:2px}
 .rec-dot{width:11px;height:11px;border-radius:50%;background:var(--red);animation:blink 1.2s infinite}
 @keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
-.night-stats{width:100%;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.night-stats{width:100%;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
 .night-stat{background:rgba(255,255,255,.05);border-radius:10px;padding:12px;text-align:center}
 .night-stat .n-label{font-size:10px;color:#666;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
 .night-stat .n-value{font-size:22px;font-family:'Courier New',monospace;color:#fff;font-weight:700}
@@ -222,9 +222,11 @@ html,body{height:100%;overflow:hidden;font-family:system-ui,-apple-system,sans-s
     </div>
     <div class="night-idle-msg" id="night-idle-msg">Avvia il log notturno per rilevare eventi sonori.<br>La sessione viene salvata automaticamente.</div>
     <div class="night-stats" id="night-stats" style="display:none">
-      <div class="night-stat"><div class="n-label">Livello attuale</div><div class="n-value" id="n-level">---</div></div>
+      <div class="night-stat"><div class="n-label">Livello</div><div class="n-value" id="n-level">---</div></div>
       <div class="night-stat"><div class="n-label">Baseline</div><div class="n-value" id="n-baseline">---</div></div>
-      <div class="night-stat"><div class="n-label">Stato</div><div class="n-value" id="n-state" style="font-size:15px">IDLE</div></div>
+      <div class="night-stat"><div class="n-label">Soglia ON</div><div class="n-value" id="n-thron">---</div></div>
+      <div class="night-stat"><div class="n-label">Stato</div><div class="n-value" id="n-state" style="font-size:13px">IDLE</div></div>
+      <div class="night-stat"><div class="n-label">Progresso</div><div class="n-value" id="n-progress" style="font-size:13px">—</div></div>
       <div class="night-stat"><div class="n-label">Eventi</div><div class="n-value" id="n-events">0</div></div>
     </div>
     <canvas id="night-mini-canvas" style="display:none;background:rgba(255,255,255,.03);border-radius:8px"></canvas>
@@ -645,7 +647,7 @@ let miniData=[];
 const SM={IDLE:'IDLE',RISING:'RISING',ACTIVE:'ACTIVE',FALLING:'FALLING'};
 let smState=SM.IDLE, smBaseline=-60, smBaselineReady=false;
 let smRiseStart=null, smFallStart=null, smEvStart=null, smPeak=-Infinity;
-let smEvents=[];
+let smEvents=[], smStateStart=null;
 
 const miniCanvas=document.getElementById('night-mini-canvas');
 const miniCtx=miniCanvas.getContext('2d');
@@ -676,35 +678,54 @@ function drawMini(){
 
 function smStep(level, nowSec){
   const thrOn=smBaseline+cfg.onDb, thrOff=smBaseline+cfg.offDb;
-  // Update baseline when not in ACTIVE state
+  // Update baseline only when not in ACTIVE (event in progress)
   if(smState!==SM.ACTIVE) smBaseline=smBaseline*(1-cfg.baselineAlpha)+level*cfg.baselineAlpha;
+
+  // Update threshold display every step
+  document.getElementById('n-thron').textContent=thrOn.toFixed(1)+'dB';
+
+  const prev=smState;
   switch(smState){
     case SM.IDLE:
-      if(level>thrOn){ smState=SM.RISING; smRiseStart=nowSec; } break;
-    case SM.RISING:
-      if(level<=thrOn){ smState=SM.IDLE; }
-      else if(nowSec-smRiseStart>=cfg.minOnS){
-        smState=SM.ACTIVE; smEvStart=smRiseStart; smPeak=level;
-        setNightState('ATTIVO','var(--red)');
+      document.getElementById('n-progress').textContent='—';
+      if(level>thrOn){ smState=SM.RISING; smRiseStart=nowSec; smStateStart=nowSec; } break;
+    case SM.RISING: {
+      const elapsed=nowSec-smRiseStart, remaining=Math.max(0,cfg.minOnS-elapsed);
+      document.getElementById('n-progress').textContent=`${elapsed.toFixed(0)}/${cfg.minOnS}s`;
+      if(level<=thrOn){ smState=SM.IDLE; setNightState('IDLE',''); }
+      else if(elapsed>=cfg.minOnS){
+        smState=SM.ACTIVE; smEvStart=smRiseStart; smPeak=level; smStateStart=nowSec;
+        setNightState('ATTIVO ●','var(--red)');
       } break;
+    }
     case SM.ACTIVE:
       if(level>smPeak) smPeak=level;
-      if(level<thrOff){ smState=SM.FALLING; smFallStart=nowSec; } break;
-    case SM.FALLING:
-      if(level>=thrOff){ smState=SM.ACTIVE; }
-      else if(nowSec-smFallStart>=cfg.minOffS){
-        const ev={id:uuid(),sessionId:nightSession.id,band:cfg.triggerBand,
-          startT:Math.floor(smEvStart),endT:Math.floor(smFallStart),
-          durationS:Math.floor(smFallStart-smEvStart),peakDb:smPeak};
-        smEvents.push(ev);
-        dbPut('events',ev).catch(()=>{});
-        nightSession.eventsCount=smEvents.length;
-        dbPut('sessions',nightSession).catch(()=>{});
-        document.getElementById('n-events').textContent=smEvents.length;
+      document.getElementById('n-progress').textContent=fmtDur(nowSec-smEvStart);
+      if(level<thrOff){ smState=SM.FALLING; smFallStart=nowSec; smStateStart=nowSec; } break;
+    case SM.FALLING: {
+      const elapsed=nowSec-smFallStart, remaining=Math.max(0,cfg.minOffS-elapsed);
+      document.getElementById('n-progress').textContent=`fine in ${remaining.toFixed(0)}s`;
+      if(level>=thrOff){ smState=SM.ACTIVE; smStateStart=nowSec; }
+      else if(elapsed>=cfg.minOffS){
+        saveCompletedEvent(smEvStart, smFallStart, smPeak);
+        smPeak=-Infinity; smEvStart=null; smState=SM.IDLE; smStateStart=nowSec;
         setNightState('IDLE','');
-        smPeak=-Infinity; smState=SM.IDLE;
       } break;
+    }
   }
+  if(smState!==prev && smState===SM.RISING) setNightState('↑ RISING','var(--amber)');
+  if(smState!==prev && smState===SM.FALLING) setNightState('↓ FALLING','#88aaff');
+}
+
+function saveCompletedEvent(startT, endT, peak){
+  const ev={id:uuid(),sessionId:nightSession.id,band:cfg.triggerBand,
+    startT:Math.floor(startT),endT:Math.floor(endT),
+    durationS:Math.floor(endT-startT),peakDb:peak};
+  smEvents.push(ev);
+  dbPut('events',ev).catch(()=>{});
+  nightSession.eventsCount=smEvents.length;
+  dbPut('sessions',nightSession).catch(()=>{});
+  document.getElementById('n-events').textContent=smEvents.length;
 }
 
 function setNightState(label,color){
@@ -786,7 +807,7 @@ async function startNight(){
   await dbPut('sessions',nightSession);
   // Reset SM
   smState=SM.IDLE; smBaseline=-60; smBaselineReady=false;
-  smRiseStart=smFallStart=smEvStart=null; smPeak=-Infinity; smEvents=[];
+  smRiseStart=smFallStart=smEvStart=null; smPeak=-Infinity; smEvents=[]; smStateStart=null;
   framesBuf=[]; lastAggSec=0; sampleBuf=[]; lastFlush=Date.now(); miniData=[];
   nightRunning=true;
   // UI
@@ -806,6 +827,11 @@ async function stopNight(){
   if(!nightRunning) return;
   nightRunning=false;
   if(nightRAF){cancelAnimationFrame(nightRAF);nightRAF=null;}
+  // Save any event that was ACTIVE or FALLING when recording stopped
+  if(smEvStart!==null && (smState===SM.ACTIVE||smState===SM.FALLING)){
+    const endT=Date.now()/1000;
+    saveCompletedEvent(smEvStart, endT, smPeak);
+  }
   if(sampleBuf.length) await dbBatch('samples',sampleBuf.splice(0)).catch(()=>{});
   if(nightSession){ nightSession.endedAt=Date.now(); nightSession.eventsCount=smEvents.length; await dbPut('sessions',nightSession); nightSession=null; }
   try{ await wakeLock?.release(); }catch(e){} wakeLock=null;
