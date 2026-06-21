@@ -85,10 +85,16 @@ html,body{height:100%;overflow:hidden;font-family:system-ui,-apple-system,sans-s
 .night-rec{display:flex;align-items:center;gap:8px;font-size:15px;color:var(--red);font-weight:600;letter-spacing:2px}
 .rec-dot{width:11px;height:11px;border-radius:50%;background:var(--red);animation:blink 1.2s infinite}
 @keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
-.night-stats{width:100%;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
-.night-stat{background:rgba(255,255,255,.05);border-radius:10px;padding:12px;text-align:center}
-.night-stat .n-label{font-size:10px;color:#666;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
-.night-stat .n-value{font-size:22px;font-family:'Courier New',monospace;color:#fff;font-weight:700}
+.night-bands{width:100%;display:flex;flex-direction:column;gap:7px}
+.bsr{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.05);border-radius:10px;padding:9px 12px}
+.bsr-tag{font-size:12px;font-weight:700;color:#fff;min-width:34px;line-height:1.2}
+.bsr-tag small{display:block;font-size:9px;font-weight:400;color:#555}
+.bsr-bar-wrap{flex:1;height:8px;background:rgba(255,255,255,.1);border-radius:4px;overflow:hidden}
+.bsr-bar{height:100%;width:0%;border-radius:4px;transition:width .1s}
+.bsr-lvl{font-family:monospace;font-size:12px;color:var(--accent2);min-width:52px;text-align:right}
+.bsr-state{font-size:10px;font-weight:700;min-width:46px;text-align:center;padding:2px 5px;border-radius:8px;background:rgba(255,255,255,.07)}
+.bsr-prog{font-size:10px;color:#555;min-width:38px;text-align:right}
+.night-total{text-align:center;font-size:13px;color:#666;padding-top:2px}
 #night-mini-canvas{width:100%;height:80px;border-radius:8px;display:block}
 .night-banner{
   width:100%;padding:10px 14px;background:rgba(255,170,0,.1);
@@ -221,13 +227,29 @@ html,body{height:100%;overflow:hidden;font-family:system-ui,-apple-system,sans-s
       </div>
     </div>
     <div class="night-idle-msg" id="night-idle-msg">Avvia il log notturno per rilevare eventi sonori.<br>La sessione viene salvata automaticamente.</div>
-    <div class="night-stats" id="night-stats" style="display:none">
-      <div class="night-stat"><div class="n-label">Livello</div><div class="n-value" id="n-level">---</div></div>
-      <div class="night-stat"><div class="n-label">Baseline</div><div class="n-value" id="n-baseline">---</div></div>
-      <div class="night-stat"><div class="n-label">Soglia ON</div><div class="n-value" id="n-thron">---</div></div>
-      <div class="night-stat"><div class="n-label">Stato</div><div class="n-value" id="n-state" style="font-size:13px">IDLE</div></div>
-      <div class="night-stat"><div class="n-label">Progresso</div><div class="n-value" id="n-progress" style="font-size:13px">—</div></div>
-      <div class="night-stat"><div class="n-label">Eventi</div><div class="n-value" id="n-events">0</div></div>
+    <div class="night-bands" id="night-stats" style="display:none">
+      <div class="bsr" id="bsr-A">
+        <div class="bsr-tag">A<small>50 Hz</small></div>
+        <div class="bsr-bar-wrap"><div class="bsr-bar" id="bbar-A" style="background:var(--amber)"></div></div>
+        <div class="bsr-lvl" id="blvl-A">---</div>
+        <div class="bsr-state" id="bst-A">—</div>
+        <div class="bsr-prog" id="bprog-A">—</div>
+      </div>
+      <div class="bsr" id="bsr-B">
+        <div class="bsr-tag">B<small>100 Hz</small></div>
+        <div class="bsr-bar-wrap"><div class="bsr-bar" id="bbar-B" style="background:var(--accent)"></div></div>
+        <div class="bsr-lvl" id="blvl-B">---</div>
+        <div class="bsr-state" id="bst-B">—</div>
+        <div class="bsr-prog" id="bprog-B">—</div>
+      </div>
+      <div class="bsr" id="bsr-broad">
+        <div class="bsr-tag">Larga<small>20–200</small></div>
+        <div class="bsr-bar-wrap"><div class="bsr-bar" id="bbar-broad" style="background:#8877ff"></div></div>
+        <div class="bsr-lvl" id="blvl-broad">---</div>
+        <div class="bsr-state" id="bst-broad">—</div>
+        <div class="bsr-prog" id="bprog-broad">—</div>
+      </div>
+      <div class="night-total">Tot. eventi: <span id="n-events" style="color:#fff;font-weight:700">0</span></div>
     </div>
     <canvas id="night-mini-canvas" style="display:none;background:rgba(255,255,255,.03);border-radius:8px"></canvas>
     <div class="night-banner">⚡ Tieni il telefono in carica e l'app in primo piano.<br>Su iOS, bloccare lo schermo interrompe la registrazione.</div>
@@ -303,7 +325,7 @@ html,body{height:100%;overflow:hidden;font-family:system-ui,-apple-system,sans-s
     <div class="setting-row"><div class="s-label">Sonificazione (stile Geiger)</div><div class="setting-ctrl"><div class="toggle" id="s-sonify-toggle"></div></div></div>
   </div>
   <div class="settings-section" style="border-bottom:none">
-    <button class="btn primary" id="btn-save-settings" style="width:100%;font-size:15px;padding:12px">💾 Salva impostazioni</button>
+    <div style="text-align:center;font-size:12px;color:var(--text3)" id="settings-saved-msg">Le impostazioni si salvano automaticamente.</div>
   </div>
 </div>
 
@@ -481,24 +503,48 @@ function bandLevelDb(fd,fLow,fHigh,SR,fftSize){
 }
 
 // ── SONIFICATION ───────────────────────────────────────────────────────────
-let sonifyOsc=null, sonifyGain=null, sonifyActive=false;
+// ── SONIFY (stile contatore Geiger) ───────────────────────────────────────
+let sonifyActive=false, geigerTimer=null, geigerLevel=-120;
+
+function playClick(){
+  if(!audioCtx) return;
+  // Scarica brevissima di rumore con decay esponenziale — suono "clic" Geiger
+  const dur=Math.floor(audioCtx.sampleRate*0.003);
+  const buf=audioCtx.createBuffer(1,dur,audioCtx.sampleRate);
+  const d=buf.getChannelData(0);
+  for(let i=0;i<dur;i++) d[i]=(Math.random()*2-1)*Math.exp(-i/(dur*0.25));
+  const src=audioCtx.createBufferSource();
+  src.buffer=buf;
+  const g=audioCtx.createGain();
+  const norm=Math.max(0,Math.min(1,(geigerLevel+120)/80));
+  g.gain.value=0.3+norm*0.65;
+  src.connect(g); g.connect(audioCtx.destination);
+  src.start();
+}
+
+function geigerSchedule(){
+  if(!sonifyActive) return;
+  const norm=Math.max(0,Math.min(1,(geigerLevel+120)/80));
+  // tasso click: 0/s a silenzio → ~30/s al massimo, scala quadratica
+  const rate=norm*norm*30;
+  if(rate>0.3){
+    playClick();
+    // variabilità casuale come un vero Geiger
+    geigerTimer=setTimeout(geigerSchedule,(1000/rate)*(0.4+Math.random()*1.2));
+  } else {
+    geigerTimer=setTimeout(geigerSchedule,400);
+  }
+}
+
 function startSonify(){
-  if(!audioCtx||sonifyActive) return;
-  sonifyGain=audioCtx.createGain(); sonifyGain.gain.value=0; sonifyGain.connect(audioCtx.destination);
-  sonifyOsc=audioCtx.createOscillator(); sonifyOsc.type='sine'; sonifyOsc.frequency.value=440;
-  sonifyOsc.connect(sonifyGain); sonifyOsc.start(); sonifyActive=true;
+  if(sonifyActive) return;
+  sonifyActive=true; geigerSchedule();
 }
 function stopSonify(){
-  if(!sonifyActive) return;
-  sonifyOsc?.stop(); sonifyOsc?.disconnect(); sonifyOsc=null;
-  sonifyGain?.disconnect(); sonifyGain=null; sonifyActive=false;
+  sonifyActive=false;
+  if(geigerTimer){clearTimeout(geigerTimer);geigerTimer=null;}
 }
-function updateSonify(db){
-  if(!sonifyActive||!sonifyGain||!sonifyOsc) return;
-  const norm=Math.max(0,Math.min(1,(db+120)/100));
-  sonifyGain.gain.setTargetAtTime(norm*0.25,audioCtx.currentTime,0.05);
-  sonifyOsc.frequency.setTargetAtTime(200+norm*1800,audioCtx.currentTime,0.05);
-}
+function updateSonify(db){ geigerLevel=db; }
 
 // ── LIVE MODE ──────────────────────────────────────────────────────────────
 let liveRunning=false, liveRAF=null, liveFrozen=false;
@@ -647,12 +693,16 @@ let framesBuf=[], lastAggSec=0;
 let sampleBuf=[], lastFlush=0;
 let miniData=[];
 
-// State machine
+// State machine (multi-banda)
 const SM={IDLE:'IDLE',RISING:'RISING',ACTIVE:'ACTIVE',FALLING:'FALLING'};
-let smState=SM.IDLE, smBaseline=-60;
-let smRiseStart=null, smFallStart=null, smEvStart=null, smPeak=-Infinity;
-let smEvents=[], smStateStart=null;
-let inWarmup=true, warmupLeft=0;
+const BAND_KEYS=['A','B','broad'];
+let sms={};        // keyed by band
+let allEvents=[];  // tutti gli eventi di tutte le bande
+
+function createSM(band){
+  return{band,state:SM.IDLE,baseline:-60,riseStart:null,fallStart:null,
+         evStart:null,peak:-Infinity,inWarmup:true,warmupLeft:10};
+}
 
 const miniCanvas=document.getElementById('night-mini-canvas');
 const miniCtx=miniCanvas.getContext('2d');
@@ -672,70 +722,81 @@ function drawMini(){
   });
   miniCtx.stroke();
   // Events overlay
-  if(nightSession&&smEvents.length){
+  if(nightSession&&allEvents.length){
     const tMin=nightSession.startedAt/1000, tSpan=(Date.now()/1000)-tMin;
-    smEvents.forEach(ev=>{
+    allEvents.forEach(ev=>{
       const x0=(ev.startT-tMin)/tSpan*W, x1=(ev.endT-tMin)/tSpan*W;
       miniCtx.fillStyle='rgba(255,68,102,.25)'; miniCtx.fillRect(x0,0,Math.max(x1-x0,2),H);
     });
   }
 }
 
-function smStep(level, nowSec){
-  const thrOn=smBaseline+cfg.onDb, thrOff=smBaseline+cfg.offDb;
-  // Update baseline only when not in ACTIVE (event in progress)
-  if(smState!==SM.ACTIVE) smBaseline=smBaseline*(1-cfg.baselineAlpha)+level*cfg.baselineAlpha;
+function setBandUI(band, stateLabel, stateColor, prog){
+  const st=document.getElementById('bst-'+band);
+  const pr=document.getElementById('bprog-'+band);
+  if(st){st.textContent=stateLabel; st.style.color=stateColor||'';}
+  if(pr) pr.textContent=prog||'—';
+}
 
-  // Update threshold display every step
-  document.getElementById('n-thron').textContent=thrOn.toFixed(1)+'dB';
+function updateBandLevel(band, level){
+  const lvlEl=document.getElementById('blvl-'+band);
+  const barEl=document.getElementById('bbar-'+band);
+  if(lvlEl) lvlEl.textContent=isFinite(level)?level.toFixed(1)+'dB':'---';
+  if(barEl) barEl.style.width=Math.max(0,Math.min(100,(level+120)/120*100))+'%';
+}
 
-  const prev=smState;
-  switch(smState){
+function smStepBand(sm, level, nowSec){
+  const bid=sm.band;
+  if(sm.inWarmup){
+    sm.baseline=sm.baseline*(1-0.15)+level*0.15;
+    sm.warmupLeft--;
+    setBandUI(bid,'CALIBR.','var(--text2)',`${sm.warmupLeft}s`);
+    if(sm.warmupLeft<=0){ sm.inWarmup=false; setBandUI(bid,'IDLE','','—'); }
+    return;
+  }
+  const thrOn=sm.baseline+cfg.onDb, thrOff=sm.baseline+cfg.offDb;
+  if(sm.state!==SM.ACTIVE) sm.baseline=sm.baseline*(1-cfg.baselineAlpha)+level*cfg.baselineAlpha;
+  const prev=sm.state;
+  switch(sm.state){
     case SM.IDLE:
-      document.getElementById('n-progress').textContent='—';
-      if(level>thrOn){ smState=SM.RISING; smRiseStart=nowSec; smStateStart=nowSec; } break;
-    case SM.RISING: {
-      const elapsed=nowSec-smRiseStart, remaining=Math.max(0,cfg.minOnS-elapsed);
-      document.getElementById('n-progress').textContent=`${elapsed.toFixed(0)}/${cfg.minOnS}s`;
-      if(level<=thrOn){ smState=SM.IDLE; setNightState('IDLE',''); }
-      else if(elapsed>=cfg.minOnS){
-        smState=SM.ACTIVE; smEvStart=smRiseStart; smPeak=level; smStateStart=nowSec;
-        setNightState('ATTIVO ●','var(--red)');
-      } break;
+      setBandUI(bid,'IDLE','','—');
+      if(level>thrOn){sm.state=SM.RISING; sm.riseStart=nowSec;}
+      break;
+    case SM.RISING:{
+      const el=nowSec-sm.riseStart;
+      setBandUI(bid,'↑ RISE','var(--amber)',`${Math.floor(el)}/${cfg.minOnS}s`);
+      if(level<=thrOn){sm.state=SM.IDLE;}
+      else if(el>=cfg.minOnS){sm.state=SM.ACTIVE; sm.evStart=sm.riseStart; sm.peak=level;}
+      break;
     }
     case SM.ACTIVE:
-      if(level>smPeak) smPeak=level;
-      document.getElementById('n-progress').textContent=fmtDur(nowSec-smEvStart);
-      if(level<thrOff){ smState=SM.FALLING; smFallStart=nowSec; smStateStart=nowSec; } break;
-    case SM.FALLING: {
-      const elapsed=nowSec-smFallStart, remaining=Math.max(0,cfg.minOffS-elapsed);
-      document.getElementById('n-progress').textContent=`fine in ${remaining.toFixed(0)}s`;
-      if(level>=thrOff){ smState=SM.ACTIVE; smStateStart=nowSec; }
-      else if(elapsed>=cfg.minOffS){
-        saveCompletedEvent(smEvStart, smFallStart, smPeak);
-        smPeak=-Infinity; smEvStart=null; smState=SM.IDLE; smStateStart=nowSec;
-        setNightState('IDLE','');
-      } break;
+      if(level>sm.peak) sm.peak=level;
+      setBandUI(bid,'● ATTIVO','var(--red)',fmtDur(Math.floor(nowSec-sm.evStart)));
+      if(level<thrOff){sm.state=SM.FALLING; sm.fallStart=nowSec;}
+      break;
+    case SM.FALLING:{
+      const el=nowSec-sm.fallStart;
+      const rem=Math.max(0,Math.floor(cfg.minOffS-el));
+      setBandUI(bid,'↓ FINE','#88aaff',`fine ${rem}s`);
+      if(level>=thrOff){sm.state=SM.ACTIVE;}
+      else if(el>=cfg.minOffS){
+        saveEvent(sm.evStart,sm.fallStart,sm.peak,bid);
+        sm.peak=-Infinity; sm.evStart=null; sm.state=SM.IDLE;
+      }
+      break;
     }
   }
-  if(smState!==prev && smState===SM.RISING) setNightState('↑ RISING','var(--amber)');
-  if(smState!==prev && smState===SM.FALLING) setNightState('↓ FALLING','#88aaff');
 }
 
-function saveCompletedEvent(startT, endT, peak){
-  const ev={id:uuid(),sessionId:nightSession.id,band:cfg.triggerBand,
+function saveEvent(startT, endT, peak, band){
+  const ev={id:uuid(),sessionId:nightSession.id,band,
     startT:Math.floor(startT),endT:Math.floor(endT),
     durationS:Math.floor(endT-startT),peakDb:peak};
-  smEvents.push(ev);
+  allEvents.push(ev);
   dbPut('events',ev).catch(()=>{});
-  nightSession.eventsCount=smEvents.length;
+  nightSession.eventsCount=allEvents.length;
   dbPut('sessions',nightSession).catch(()=>{});
-  document.getElementById('n-events').textContent=smEvents.length;
-}
-
-function setNightState(label,color){
-  const el=document.getElementById('n-state');
-  el.textContent=label; el.style.color=color;
+  document.getElementById('n-events').textContent=allEvents.length;
 }
 
 async function nightFrame(){
@@ -747,9 +808,12 @@ async function nightFrame(){
   const lvlA=bandLevelDb(fd,bands.A.low,bands.A.high,SR,fftSz);
   const lvlB=bandLevelDb(fd,bands.B.low,bands.B.high,SR,fftSz);
   const lvlBroad=bandLevelDb(fd,bands.broad.low,bands.broad.high,SR,fftSz);
-  // Aggiorna il display del livello ogni frame (non aspettare il secondo)
-  const rtLevel={A:lvlA,B:lvlB,broad:lvlBroad}[cfg.triggerBand];
-  document.getElementById('n-level').textContent=isFinite(rtLevel)?rtLevel.toFixed(1)+'dB':'---';
+  // Aggiorna barre livello ogni frame (real-time)
+  updateBandLevel('A',lvlA);
+  updateBandLevel('B',lvlB);
+  updateBandLevel('broad',lvlBroad);
+  // Sonify: usa il livello più alto tra le tre bande
+  if(sonifyActive) updateSonify(Math.max(lvlA,lvlB,lvlBroad));
 
   framesBuf.push({a:lvlA,b:lvlB,broad:lvlBroad,t:nowSec});
   const secNow=Math.floor(nowSec);
@@ -759,21 +823,12 @@ async function nightFrame(){
     function avgBand(key){ let p=0; framesBuf.forEach(f=>p+=Math.pow(10,f[key]/10)); return 10*Math.log10(p/n+1e-12); }
     const aA=avgBand('a'), aB=avgBand('b'), aBroad=avgBand('broad');
     framesBuf=[];
-    const trigLevel={A:aA,B:aB,broad:aBroad}[cfg.triggerBand];
-    if(inWarmup){
-      // Convergenza rapida (alpha=0.15) per raggiungere il livello ambientale reale
-      smBaseline=smBaseline*(1-0.15)+trigLevel*0.15;
-      warmupLeft--;
-      setNightState('CALIBR.','var(--text2)');
-      document.getElementById('n-progress').textContent=`${warmupLeft}s`;
-      document.getElementById('n-thron').textContent='—';
-      if(warmupLeft<=0){ inWarmup=false; setNightState('IDLE',''); }
-    } else {
-      smStep(trigLevel,secNow);
-    }
-    miniData.push(trigLevel);
+    // State machine per ciascuna banda
+    smStepBand(sms.A,    aA,    secNow);
+    smStepBand(sms.B,    aB,    secNow);
+    smStepBand(sms.broad,aBroad,secNow);
+    miniData.push(aB);
     if(miniData.length>3600) miniData.shift();
-    document.getElementById('n-baseline').textContent=isFinite(smBaseline)?smBaseline.toFixed(1)+'dB':'---';
     sampleBuf.push({sessionId:nightSession.id,t:secNow,a:aA,b:aB,broad:aBroad});
     const now=Date.now();
     if(now-lastFlush>10000||sampleBuf.length>=10){
@@ -831,10 +886,9 @@ async function startNight(){
     eventsCount:0
   };
   await dbPut('sessions',nightSession);
-  // Reset SM
-  smState=SM.IDLE;
-  smRiseStart=smFallStart=smEvStart=null; smPeak=-Infinity; smEvents=[]; smStateStart=null;
-  smBaseline=-60; inWarmup=true; warmupLeft=10;
+  // Reset state machine per tutte e 3 le bande
+  sms={A:createSM('A'), B:createSM('B'), broad:createSM('broad')};
+  allEvents=[];
   framesBuf=[]; lastAggSec=0; sampleBuf=[]; lastFlush=Date.now(); miniData=[];
   nightRunning=true;
   // UI
@@ -845,7 +899,7 @@ async function startNight(){
   document.getElementById('night-stats').style.display='grid';
   document.getElementById('night-mini-canvas').style.display='block';
   document.getElementById('n-events').textContent='0';
-  setNightState('IDLE','');
+  BAND_KEYS.forEach(k=>setBandUI(k,'—','','—'));
   await keepAwake();
   nightRAF=requestAnimationFrame(nightLoop);
 }
@@ -854,13 +908,15 @@ async function stopNight(){
   if(!nightRunning) return;
   nightRunning=false;
   if(nightRAF){cancelAnimationFrame(nightRAF);nightRAF=null;}
-  // Save any event that was ACTIVE or FALLING when recording stopped
-  if(smEvStart!==null && (smState===SM.ACTIVE||smState===SM.FALLING)){
-    const endT=Date.now()/1000;
-    saveCompletedEvent(smEvStart, endT, smPeak);
-  }
+  // Salva eventuali eventi aperti su tutte le bande
+  const endT=Date.now()/1000;
+  BAND_KEYS.forEach(k=>{
+    const sm=sms[k];
+    if(sm&&sm.evStart!==null&&(sm.state===SM.ACTIVE||sm.state===SM.FALLING))
+      saveEvent(sm.evStart,endT,sm.peak,k);
+  });
   if(sampleBuf.length) await dbBatch('samples',sampleBuf.splice(0)).catch(()=>{});
-  if(nightSession){ nightSession.endedAt=Date.now(); nightSession.eventsCount=smEvents.length; await dbPut('sessions',nightSession); nightSession=null; }
+  if(nightSession){ nightSession.endedAt=Date.now(); nightSession.eventsCount=allEvents.length; await dbPut('sessions',nightSession); nightSession=null; }
   try{ await wakeLock?.release(); }catch(e){} wakeLock=null;
   // Chiudi il microfono solo se anche Live mode non lo sta usando
   if(!liveRunning) stopAudio();
@@ -1130,18 +1186,30 @@ async function init(){
   document.getElementById('s-sonify-toggle').addEventListener('click',function(){
     cfg.sonification=!cfg.sonification;
     this.classList.toggle('on',cfg.sonification);
+    applyAndSaveSettings();
   });
-  document.getElementById('btn-save-settings').addEventListener('click',()=>{
+
+  // Auto-save su qualsiasi cambiamento
+  let _saveTimer=null;
+  function applyAndSaveSettings(){
     collectSettings(); saveCfg();
     if(analyser){
-      analyser.fftSize=cfg.fftSize;
-      freqData=new Float32Array(analyser.frequencyBinCount);
+      if(analyser.fftSize!==cfg.fftSize){
+        analyser.fftSize=cfg.fftSize;
+        freqData=new Float32Array(analyser.frequencyBinCount);
+      }
       if(liveRunning) analyser.smoothingTimeConstant=cfg.smoothLive;
       else if(nightRunning) analyser.smoothingTimeConstant=cfg.smoothLog;
     }
-    const bands=getBands();
-    document.getElementById('live-band-label').textContent=bands[currentBand]?.label||currentBand;
-    showToast('Impostazioni salvate ✓');
+    document.getElementById('live-band-label').textContent=getBands()[currentBand]?.label||currentBand;
+    const msg=document.getElementById('settings-saved-msg');
+    msg.textContent='✓ Salvate'; msg.style.color='var(--accent)';
+    clearTimeout(_saveTimer);
+    _saveTimer=setTimeout(()=>{ msg.textContent='Le impostazioni si salvano automaticamente.'; msg.style.color=''; },1500);
+  }
+  document.querySelectorAll('#tab-settings input,#tab-settings select').forEach(el=>{
+    el.addEventListener('input', applyAndSaveSettings);
+    el.addEventListener('change', applyAndSaveSettings);
   });
 
   // Visibility / background detection
