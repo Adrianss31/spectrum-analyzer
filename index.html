@@ -424,6 +424,8 @@ let audioCtx=null, analyser=null, sourceNode=null, micStream=null, freqData=null
 let audioRunning=false;
 
 async function startAudio(){
+  // Idempotente: se già attivo riusa lo stesso AudioContext/Analyser
+  if(audioRunning && audioCtx && analyser && micStream) return true;
   if(!window.isSecureContext && location.hostname!=='localhost'){
     showToast('⚠ Serve HTTPS per accedere al microfono.',5000); return false;
   }
@@ -620,7 +622,9 @@ function stopLive(){
   if(!liveRunning) return;
   liveRunning=false; liveFrozen=false;
   if(liveRAF){cancelAnimationFrame(liveRAF);liveRAF=null;}
-  stopAudio();
+  stopSonify();
+  // Chiudi il microfono solo se anche Night mode non lo sta usando
+  if(!nightRunning) stopAudio();
   document.getElementById('btn-start').textContent='▶ Avvia';
   document.getElementById('btn-start').classList.add('primary');
   document.getElementById('btn-start').classList.remove('danger');
@@ -743,6 +747,10 @@ async function nightFrame(){
   const lvlA=bandLevelDb(fd,bands.A.low,bands.A.high,SR,fftSz);
   const lvlB=bandLevelDb(fd,bands.B.low,bands.B.high,SR,fftSz);
   const lvlBroad=bandLevelDb(fd,bands.broad.low,bands.broad.high,SR,fftSz);
+  // Aggiorna il display del livello ogni frame (non aspettare il secondo)
+  const rtLevel={A:lvlA,B:lvlB,broad:lvlBroad}[cfg.triggerBand];
+  document.getElementById('n-level').textContent=isFinite(rtLevel)?rtLevel.toFixed(1)+'dB':'---';
+
   framesBuf.push({a:lvlA,b:lvlB,broad:lvlBroad,t:nowSec});
   const secNow=Math.floor(nowSec);
   if(secNow>lastAggSec&&framesBuf.length>0){
@@ -765,7 +773,6 @@ async function nightFrame(){
     }
     miniData.push(trigLevel);
     if(miniData.length>3600) miniData.shift();
-    document.getElementById('n-level').textContent=isFinite(trigLevel)?trigLevel.toFixed(1)+'dB':'---';
     document.getElementById('n-baseline').textContent=isFinite(smBaseline)?smBaseline.toFixed(1)+'dB':'---';
     sampleBuf.push({sessionId:nightSession.id,t:secNow,a:aA,b:aB,broad:aBroad});
     const now=Date.now();
@@ -802,8 +809,17 @@ async function keepAwake(){ if('wakeLock' in navigator) try{ wakeLock=await navi
 
 async function startNight(){
   if(nightRunning) return;
-  if(liveRunning) stopLive();
-  const ok=await startAudio(); if(!ok) return;
+  // Ferma solo il loop Live, senza chiudere l'AudioContext
+  if(liveRunning){
+    liveRunning=false; liveFrozen=false;
+    if(liveRAF){cancelAnimationFrame(liveRAF);liveRAF=null;}
+    stopSonify();
+    document.getElementById('btn-start').textContent='▶ Avvia';
+    document.getElementById('btn-start').classList.add('primary');
+    document.getElementById('btn-start').classList.remove('danger');
+    ['btn-freeze','btn-reset-peak','btn-sonify','btn-cap-a','btn-cap-b'].forEach(id=>document.getElementById(id).disabled=true);
+  }
+  const ok=await startAudio(); if(!ok) return;  // riusa l'AudioContext esistente se già attivo
   analyser.smoothingTimeConstant=cfg.smoothLog;
   nightSession={
     id:uuid(),
@@ -846,7 +862,8 @@ async function stopNight(){
   if(sampleBuf.length) await dbBatch('samples',sampleBuf.splice(0)).catch(()=>{});
   if(nightSession){ nightSession.endedAt=Date.now(); nightSession.eventsCount=smEvents.length; await dbPut('sessions',nightSession); nightSession=null; }
   try{ await wakeLock?.release(); }catch(e){} wakeLock=null;
-  stopAudio();
+  // Chiudi il microfono solo se anche Live mode non lo sta usando
+  if(!liveRunning) stopAudio();
   document.getElementById('btn-night-start').style.display='';
   document.getElementById('btn-night-stop').style.display='none';
   document.getElementById('night-rec-row').style.display='none';
