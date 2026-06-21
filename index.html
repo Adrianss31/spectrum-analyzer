@@ -77,36 +77,37 @@ html,body{height:100%;overflow:hidden;font-family:system-ui,-apple-system,sans-s
 
 /* === NIGHT === */
 #tab-night{background:#000}
-.night-screen{width:100%;padding:20px 16px;display:flex;flex-direction:column;align-items:center;gap:14px}
-.night-clock{
-  font-size:58px;font-variant-numeric:tabular-nums;
-  font-family:'Courier New',monospace;color:#fff;letter-spacing:3px;
-}
-.night-rec{display:flex;align-items:center;gap:8px;font-size:15px;color:var(--red);font-weight:600;letter-spacing:2px}
-.rec-dot{width:11px;height:11px;border-radius:50%;background:var(--red);animation:blink 1.2s infinite}
+.night-screen{width:100%;padding:14px 14px 0;display:flex;flex-direction:column;gap:10px}
+.night-header{display:flex;align-items:flex-start;justify-content:space-between}
+.night-clock{font-size:42px;font-variant-numeric:tabular-nums;font-family:'Courier New',monospace;color:#fff;letter-spacing:2px;line-height:1}
+.night-rec{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--red);font-weight:600;letter-spacing:1px}
+.rec-dot{width:9px;height:9px;border-radius:50%;background:var(--red);animation:blink 1.2s infinite}
 @keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
-.night-bands{width:100%;display:flex;flex-direction:column;gap:7px}
-.bsr{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.05);border-radius:10px;padding:9px 12px}
-.bsr-tag{font-size:12px;font-weight:700;color:#fff;min-width:34px;line-height:1.2}
-.bsr-tag small{display:block;font-size:9px;font-weight:400;color:#555}
-.bsr-bar-wrap{flex:1;height:8px;background:rgba(255,255,255,.1);border-radius:4px;overflow:hidden}
-.bsr-bar{height:100%;width:0%;border-radius:4px;transition:width .1s}
-.bsr-lvl{font-family:monospace;font-size:12px;color:var(--accent2);min-width:52px;text-align:right}
-.bsr-state{font-size:10px;font-weight:700;min-width:46px;text-align:center;padding:2px 5px;border-radius:8px;background:rgba(255,255,255,.07)}
-.bsr-prog{font-size:10px;color:#555;min-width:38px;text-align:right}
-.night-total{text-align:center;font-size:13px;color:#666;padding-top:2px}
-#night-mini-canvas{width:100%;height:80px;border-radius:8px;display:block}
-.night-banner{
-  width:100%;padding:10px 14px;background:rgba(255,170,0,.1);
-  border:1px solid rgba(255,170,0,.3);border-radius:8px;
-  font-size:12px;color:var(--amber);text-align:center;line-height:1.5;
-}
-#night-bg-warn{
-  width:100%;padding:10px 14px;background:rgba(255,68,102,.15);
-  border:1px solid rgba(255,68,102,.4);border-radius:8px;
-  font-size:13px;color:var(--red);text-align:center;display:none;
-}
-.night-idle-msg{text-align:center;color:#555;font-size:14px;padding:10px 0}
+.night-panel{background:rgba(255,255,255,.04);border-radius:10px;padding:10px 12px;width:100%}
+.night-panel-label{font-size:10px;color:#555;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px}
+.night-wf-wrap{display:flex;gap:5px}
+.wf-yaxis{display:flex;flex-direction:column;justify-content:space-between;font-size:9px;color:#555;font-family:monospace;width:22px;text-align:right;padding:2px 0}
+#night-wf-canvas{flex:1;border-radius:4px;display:block}
+.wf-xaxis{display:flex;justify-content:space-between;font-size:9px;color:#555;font-family:monospace;padding-left:27px;margin-top:3px}
+.presence-strip{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.presence-strip:last-child{margin-bottom:0}
+.ps-label{font-size:10px;font-family:monospace;color:#555;width:46px;flex:none}
+.ps-track{flex:1;height:12px;background:rgba(255,255,255,.06);border-radius:4px;position:relative;overflow:hidden}
+.ps-bar{position:absolute;top:0;bottom:0;border-radius:3px;opacity:.85}
+.now-dominant{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px}
+.now-hz{font-size:34px;font-weight:700;font-family:'Courier New',monospace;color:var(--accent2)}
+.now-hz-unit{font-size:12px;color:#555;margin-left:3px}
+.now-status-txt{font-size:11px;text-align:right}
+.now-meter{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.now-meter:last-child{margin-bottom:0}
+.nm-label{font-size:10px;font-family:monospace;color:#666;width:46px;flex:none}
+.nm-track{flex:1;height:6px;background:rgba(255,255,255,.08);border-radius:3px;position:relative;overflow:visible}
+.nm-fill{position:absolute;top:0;bottom:0;left:0;border-radius:3px;transition:width .1s}
+.nm-thr{position:absolute;top:-3px;bottom:-3px;width:2px;background:rgba(255,255,255,.25);border-radius:1px}
+.nm-status{font-size:9px;width:84px;flex:none;text-align:right;font-family:monospace}
+.night-banner{width:100%;padding:9px 12px;background:rgba(255,170,0,.08);border:1px solid rgba(255,170,0,.25);border-radius:8px;font-size:11px;color:var(--amber);text-align:center;line-height:1.5}
+#night-bg-warn{width:100%;padding:9px 12px;background:rgba(255,68,102,.12);border:1px solid rgba(255,68,102,.35);border-radius:8px;font-size:12px;color:var(--red);text-align:center;display:none}
+.night-idle-msg{text-align:center;color:#444;font-size:14px;padding:20px 0;line-height:1.6}
 
 /* === SUMMARY === */
 #tab-summary{padding-top:0}
@@ -218,42 +219,68 @@ html,body{height:100%;overflow:hidden;font-family:system-ui,-apple-system,sans-s
 <!-- ===== NIGHT ===== -->
 <div id="tab-night" class="tab-content">
   <div class="night-screen">
-    <div class="night-clock" id="night-clock">--:--:--</div>
-    <div id="night-rec-row" style="display:none">
-      <div class="night-rec">
-        <div class="rec-dot"></div>
-        <span>REC</span>
-        <span id="night-elapsed" style="color:#666;font-weight:400;margin-left:6px">00:00:00</span>
+
+    <!-- Header: orologio + indicatore REC -->
+    <div class="night-header">
+      <div>
+        <div class="night-clock" id="night-clock">--:--:--</div>
+        <div style="font-size:10px;color:#333;margin-top:2px" id="night-elapsed-label">log notturno</div>
+      </div>
+      <div id="night-rec-row" style="display:none;text-align:right">
+        <div class="night-rec" style="justify-content:flex-end">
+          <div class="rec-dot"></div><span>REC</span>
+        </div>
+        <div style="font-size:10px;color:#555;margin-top:2px;font-family:monospace" id="night-elapsed">00:00:00</div>
       </div>
     </div>
+
     <div class="night-idle-msg" id="night-idle-msg">Avvia il log notturno per rilevare eventi sonori.<br>La sessione viene salvata automaticamente.</div>
-    <div class="night-bands" id="night-stats" style="display:none">
-      <div class="bsr" id="bsr-A">
-        <div class="bsr-tag">A<small>50 Hz</small></div>
-        <div class="bsr-bar-wrap"><div class="bsr-bar" id="bbar-A" style="background:var(--amber)"></div></div>
-        <div class="bsr-lvl" id="blvl-A">---</div>
-        <div class="bsr-state" id="bst-A">—</div>
-        <div class="bsr-prog" id="bprog-A">—</div>
+
+    <!-- Waterfall heatmap freq × tempo -->
+    <div id="night-wf-panel" class="night-panel" style="display:none">
+      <div class="night-panel-label">Waterfall · 20–200 Hz · tutta la notte</div>
+      <div class="night-wf-wrap">
+        <div class="wf-yaxis"><span>200</span><span>100</span><span>50</span><span>20</span></div>
+        <canvas id="night-wf-canvas" height="110"></canvas>
       </div>
-      <div class="bsr" id="bsr-B">
-        <div class="bsr-tag">B<small>100 Hz</small></div>
-        <div class="bsr-bar-wrap"><div class="bsr-bar" id="bbar-B" style="background:var(--accent)"></div></div>
-        <div class="bsr-lvl" id="blvl-B">---</div>
-        <div class="bsr-state" id="bst-B">—</div>
-        <div class="bsr-prog" id="bprog-B">—</div>
-      </div>
-      <div class="bsr" id="bsr-broad">
-        <div class="bsr-tag">Larga<small>20–200</small></div>
-        <div class="bsr-bar-wrap"><div class="bsr-bar" id="bbar-broad" style="background:#8877ff"></div></div>
-        <div class="bsr-lvl" id="blvl-broad">---</div>
-        <div class="bsr-state" id="bst-broad">—</div>
-        <div class="bsr-prog" id="bprog-broad">—</div>
-      </div>
-      <div class="night-total">Tot. eventi: <span id="n-events" style="color:#fff;font-weight:700">0</span></div>
+      <div class="wf-xaxis" id="wf-xaxis"><span>—</span></div>
     </div>
-    <canvas id="night-mini-canvas" style="display:none;background:rgba(255,255,255,.03);border-radius:8px"></canvas>
+
+    <!-- Strisce presenza per banda (Gantt) -->
+    <div id="night-strips-panel" class="night-panel" style="display:none">
+      <div class="night-panel-label">Presenza · <span id="n-events">0</span> eventi registrati</div>
+      <div class="presence-strip"><span class="ps-label">A 50 Hz</span><div class="ps-track" id="ps-A"></div></div>
+      <div class="presence-strip"><span class="ps-label">B 100 Hz</span><div class="ps-track" id="ps-B"></div></div>
+      <div class="presence-strip"><span class="ps-label">Larga</span><div class="ps-track" id="ps-broad"></div></div>
+    </div>
+
+    <!-- Segnale adesso -->
+    <div id="night-now-panel" class="night-panel" style="display:none">
+      <div class="night-panel-label">Segnale adesso</div>
+      <div class="now-dominant">
+        <div><span class="now-hz" id="now-hz">—</span><span class="now-hz-unit" id="now-hz-unit"></span></div>
+        <div class="now-status-txt" id="now-status">—</div>
+      </div>
+      <div class="now-meter">
+        <span class="nm-label">A 50 Hz</span>
+        <div class="nm-track"><div class="nm-fill" id="nm-fill-A" style="background:var(--amber);width:0%"></div><div class="nm-thr" id="nm-thr-A" style="left:50%"></div></div>
+        <span class="nm-status" id="nm-status-A">—</span>
+      </div>
+      <div class="now-meter">
+        <span class="nm-label">B 100 Hz</span>
+        <div class="nm-track"><div class="nm-fill" id="nm-fill-B" style="background:var(--accent);width:0%"></div><div class="nm-thr" id="nm-thr-B" style="left:50%"></div></div>
+        <span class="nm-status" id="nm-status-B">—</span>
+      </div>
+      <div class="now-meter">
+        <span class="nm-label">Larga</span>
+        <div class="nm-track"><div class="nm-fill" id="nm-fill-broad" style="background:#8877ff;width:0%"></div><div class="nm-thr" id="nm-thr-broad" style="left:50%"></div></div>
+        <span class="nm-status" id="nm-status-broad">—</span>
+      </div>
+    </div>
+
     <div class="night-banner">⚡ Tieni il telefono in carica e l'app in primo piano.<br>Su iOS, bloccare lo schermo interrompe la registrazione.</div>
     <div id="night-bg-warn">⚠ App andata in background — possibile interruzione della registrazione.</div>
+
     <div class="btn-row" style="justify-content:center;width:100%;flex-wrap:wrap">
       <button class="btn primary" id="btn-night-start" style="font-size:15px;padding:14px 28px">🌙 Avvia Log Notturno</button>
       <button class="btn danger" id="btn-night-stop" style="font-size:15px;padding:14px 28px;display:none">⬛ Stop</button>
@@ -264,7 +291,7 @@ html,body{height:100%;overflow:hidden;font-family:system-ui,-apple-system,sans-s
     <button class="btn" id="btn-blackout" style="display:none;width:100%;font-size:14px;padding:12px;background:var(--bg2);color:var(--text2)">
       🌑 Schermata nera (tieni il telefono giù)
     </button>
-    <div style="font-size:11px;color:#333;text-align:center">Banda e soglie di trigger: Impostazioni</div>
+
   </div>
 </div>
 
@@ -697,15 +724,14 @@ let nightRunning=false, nightRAF=null;
 let nightSession=null;
 let framesBuf=[], lastAggSec=0;
 let sampleBuf=[], lastFlush=0;
-let miniData=[];
 
 // State machine (multi-banda)
 const SM={IDLE:'IDLE',RISING:'RISING',ACTIVE:'ACTIVE',FALLING:'FALLING'};
 const BAND_KEYS=['A','B','broad'];
-let sms={};        // keyed by band
-let allEvents=[];  // tutti gli eventi di tutte le bande
+let sms={};
+let allEvents=[];
 
-const SLOW_ALPHA=0.0002; // tau≈83 min @1sps — usata per thrOn/thrOff
+const SLOW_ALPHA=0.0002; // tau≈83 min @1sps
 
 function createSM(band){
   return{band,state:SM.IDLE,baseline:-60,slowBaseline:-60,
@@ -713,45 +739,140 @@ function createSM(band){
          evStart:null,peak:-Infinity,inWarmup:true,warmupLeft:10};
 }
 
-const miniCanvas=document.getElementById('night-mini-canvas');
-const miniCtx=miniCanvas.getContext('2d');
+// No-op: lo stato è ora letto da updateNowRow() ogni frame
+function setBandUI(band, stateLabel, stateColor, prog){}
+function updateBandLevel(band, level){}
 
-function drawMini(){
+// ── WATERFALL ──────────────────────────────────────────────────────────────
+const WF_FMIN=20, WF_FMAX=200, WF_NBINS=64;
+let specBuckets=[];   // [{t, bins:Float32Array(64)}] — 1 per minuto
+let lastBucketMin=-1;
+
+function wfColor(v){
+  const stops=[[5,10,30],[30,20,90],[120,30,130],[210,60,120],[255,140,50],[255,220,100],[255,255,235]];
+  const t=v*(stops.length-1), i=Math.floor(t), f=t-i;
+  const a=stops[i], b=stops[Math.min(i+1,stops.length-1)];
+  return'rgb('+Math.round(a[0]+(b[0]-a[0])*f)+','+Math.round(a[1]+(b[1]-a[1])*f)+','+Math.round(a[2]+(b[2]-a[2])*f)+')';
+}
+
+function getWaterfallSlice(fd, SR, fftSz){
+  const binHz=SR/fftSz, fRange=WF_FMAX-WF_FMIN;
+  const out=new Float32Array(WF_NBINS).fill(-120);
+  for(let b=0;b<WF_NBINS;b++){
+    const fL=WF_FMIN+(b/WF_NBINS)*fRange, fH=WF_FMIN+((b+1)/WF_NBINS)*fRange;
+    const i0=Math.max(0,Math.round(fL/binHz)), i1=Math.min(fd.length-1,Math.round(fH/binHz));
+    let p=0,cnt=0;
+    for(let i=i0;i<=i1;i++){p+=Math.pow(10,fd[i]/10);cnt++;}
+    if(cnt>0) out[b]=10*Math.log10(p/cnt+1e-12);
+  }
+  return out;
+}
+
+function findDominantHz(fd, SR, fftSz){
+  const binHz=SR/fftSz;
+  const i0=Math.max(0,Math.round(WF_FMIN/binHz)), i1=Math.min(fd.length-1,Math.round(WF_FMAX/binHz));
+  let maxV=-Infinity, maxI=i0;
+  for(let i=i0;i<=i1;i++) if(fd[i]>maxV){maxV=fd[i];maxI=i;}
+  return maxI*binHz;
+}
+
+function drawWaterfall(){
+  const cv=document.getElementById('night-wf-canvas'); if(!cv||!specBuckets.length) return;
   const dpr=window.devicePixelRatio||1;
-  const W=miniCanvas.clientWidth||300, H=miniCanvas.clientHeight||80;
-  miniCanvas.width=W*dpr; miniCanvas.height=H*dpr;
-  miniCtx.scale(dpr,dpr);
-  miniCtx.clearRect(0,0,W,H);
-  if(miniData.length<2) return;
-  const n=miniData.length, dbMin=-120, dbMax=0;
-  miniCtx.beginPath(); miniCtx.strokeStyle='rgba(0,212,170,.75)'; miniCtx.lineWidth=1;
-  miniData.forEach((db,i)=>{
-    const x=i/(n-1)*W, y=H-(db-dbMin)/(dbMax-dbMin)*H;
-    i===0?miniCtx.moveTo(x,y):miniCtx.lineTo(x,y);
+  const W=cv.clientWidth||280, H=cv.clientHeight||110;
+  cv.width=W*dpr; cv.height=H*dpr;
+  const ctx=cv.getContext('2d'); ctx.scale(dpr,dpr);
+  ctx.clearRect(0,0,W,H);
+  const n=specBuckets.length;
+  const colW=Math.max(1,W/Math.max(n,60));
+  const dMin=-90, dMax=-20;
+  specBuckets.forEach((bucket,xi)=>{
+    const x=xi/Math.max(n,60)*W;
+    for(let b=0;b<WF_NBINS;b++){
+      // b=0 → lowest freq → bottom of canvas
+      const y=H-(b+1)/WF_NBINS*H;
+      const norm=Math.max(0,Math.min(1,(bucket.bins[b]-dMin)/(dMax-dMin)));
+      ctx.fillStyle=wfColor(norm);
+      ctx.fillRect(Math.floor(x),Math.floor(y),Math.ceil(colW)+1,Math.ceil(H/WF_NBINS)+1);
+    }
   });
-  miniCtx.stroke();
-  // Events overlay
-  if(nightSession&&allEvents.length){
-    const tMin=nightSession.startedAt/1000, tSpan=(Date.now()/1000)-tMin;
-    allEvents.forEach(ev=>{
-      const x0=(ev.startT-tMin)/tSpan*W, x1=(ev.endT-tMin)/tSpan*W;
-      miniCtx.fillStyle='rgba(255,68,102,.25)'; miniCtx.fillRect(x0,0,Math.max(x1-x0,2),H);
-    });
+  // Linee guida a 50 e 100 Hz
+  const fy=f=>H-(f-WF_FMIN)/(WF_FMAX-WF_FMIN)*H;
+  ctx.setLineDash([3,3]); ctx.lineWidth=1;
+  [50,100].forEach(f=>{
+    const y=fy(f);
+    ctx.strokeStyle='rgba(255,255,255,.22)';
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,.45)'; ctx.font='8px monospace';
+    ctx.fillText(f+'Hz',3,y-2);
+  });
+  ctx.setLineDash([]);
+  // Asse X
+  if(nightSession){
+    const start=new Date(nightSession.startedAt), now=new Date();
+    const mid=new Date((nightSession.startedAt+Date.now())/2);
+    const ax=document.getElementById('wf-xaxis');
+    if(ax) ax.innerHTML=`<span>${fmtTime(start)}</span><span>${fmtTime(mid)}</span><span>ora</span>`;
   }
 }
 
-function setBandUI(band, stateLabel, stateColor, prog){
-  const st=document.getElementById('bst-'+band);
-  const pr=document.getElementById('bprog-'+band);
-  if(st){st.textContent=stateLabel; st.style.color=stateColor||'';}
-  if(pr) pr.textContent=prog||'—';
+function drawPresenceStrips(){
+  if(!nightSession) return;
+  const tMin=nightSession.startedAt/1000, tMax=Date.now()/1000, tSpan=Math.max(tMax-tMin,1);
+  const bandColors={A:'var(--amber)',B:'var(--accent)',broad:'#8877ff'};
+  BAND_KEYS.forEach(k=>{
+    const track=document.getElementById('ps-'+k); if(!track) return;
+    track.innerHTML='';
+    const sm=sms[k];
+    const evs=[...allEvents.filter(e=>e.band===k)];
+    if(sm&&sm.evStart!==null&&(sm.state===SM.ACTIVE||sm.state===SM.RISING||sm.state===SM.FALLING))
+      evs.push({startT:sm.evStart,endT:tMax,band:k});
+    evs.forEach(ev=>{
+      const x0=((ev.startT-tMin)/tSpan*100).toFixed(2);
+      const w=Math.max(((ev.endT||tMax)-ev.startT)/tSpan*100,0.4).toFixed(2);
+      const bar=document.createElement('div');
+      bar.className='ps-bar';
+      bar.style.cssText=`left:${x0}%;width:${w}%;background:${bandColors[k]};`;
+      track.appendChild(bar);
+    });
+  });
+  document.getElementById('n-events').textContent=allEvents.length;
 }
 
-function updateBandLevel(band, level){
-  const lvlEl=document.getElementById('blvl-'+band);
-  const barEl=document.getElementById('bbar-'+band);
-  if(lvlEl) lvlEl.textContent=isFinite(level)?level.toFixed(1)+'dB':'---';
-  if(barEl) barEl.style.width=Math.max(0,Math.min(100,(level+120)/120*100))+'%';
+function updateNowRow(fd, SR, fftSz, levels){
+  if(!fd) return;
+  const domHz=findDominantHz(fd,SR,fftSz);
+  document.getElementById('now-hz').textContent=domHz.toFixed(1);
+  document.getElementById('now-hz-unit').textContent=' Hz';
+  // Stato globale
+  const actKeys=BAND_KEYS.filter(k=>sms[k]&&sms[k].state===SM.ACTIVE);
+  const warmup=BAND_KEYS.some(k=>sms[k]&&sms[k].inWarmup);
+  const statusEl=document.getElementById('now-status');
+  if(actKeys.length>0){
+    const best=actKeys.reduce((acc,k)=>{ const d=Date.now()/1000-(sms[k].evStart||0); return d>acc.d?{k,d}:acc; },{k:null,d:-1});
+    statusEl.textContent='● Segnale presente · '+fmtDur(Math.floor(Date.now()/1000-(sms[best.k].evStart||0)));
+    statusEl.style.color='var(--red)';
+  } else {
+    statusEl.textContent=warmup?'Calibrazione…':'Silenzio';
+    statusEl.style.color='#555';
+  }
+  // Mini-meter per banda
+  BAND_KEYS.forEach(k=>{
+    const sm=sms[k]; if(!sm) return;
+    const lvl=levels[k];
+    const pct=Math.max(0,Math.min(100,(lvl+120)/120*100));
+    const thrOn=sm.slowBaseline+cfg.onDb;
+    const thrPct=Math.max(0,Math.min(100,(thrOn+120)/120*100));
+    document.getElementById('nm-fill-'+k).style.width=pct+'%';
+    document.getElementById('nm-thr-'+k).style.left=thrPct+'%';
+    const active=sm.state===SM.ACTIVE;
+    const stat=sm.inWarmup?('calibr.'+sm.warmupLeft+'s'):
+      active?('●'+fmtDur(Math.floor(Date.now()/1000-(sm.evStart||0)))):
+      sm.state===SM.RISING?'↑ rise':sm.state===SM.FALLING?'↓ fine':'silenzio';
+    const stEl=document.getElementById('nm-status-'+k);
+    stEl.textContent=stat;
+    stEl.style.color=active?'var(--red)':sm.state===SM.RISING?'var(--amber)':'#555';
+  });
 }
 
 function smStepBand(sm, level, nowSec){
@@ -851,7 +972,7 @@ function saveEvent(startT, endT, peak, band){
   dbPut('events',ev).catch(()=>{});
   nightSession.eventsCount=allEvents.length;
   dbPut('sessions',nightSession).catch(()=>{});
-  document.getElementById('n-events').textContent=allEvents.length;
+  drawPresenceStrips();
 }
 
 async function nightFrame(){
@@ -863,11 +984,8 @@ async function nightFrame(){
   const lvlA=bandLevelDb(fd,bands.A.low,bands.A.high,SR,fftSz);
   const lvlB=bandLevelDb(fd,bands.B.low,bands.B.high,SR,fftSz);
   const lvlBroad=bandLevelDb(fd,bands.broad.low,bands.broad.high,SR,fftSz);
-  // Aggiorna barre livello ogni frame (real-time)
-  updateBandLevel('A',lvlA);
-  updateBandLevel('B',lvlB);
-  updateBandLevel('broad',lvlBroad);
-  // Sonify: usa il livello più alto tra le tre bande
+  // Now-row aggiornata ogni frame (real-time)
+  updateNowRow(fd,SR,fftSz,{A:lvlA,B:lvlB,broad:lvlBroad});
   if(sonifyActive) updateSonify(Math.max(lvlA,lvlB,lvlBroad));
 
   framesBuf.push({a:lvlA,b:lvlB,broad:lvlBroad,t:nowSec});
@@ -878,12 +996,17 @@ async function nightFrame(){
     function avgBand(key){ let p=0; framesBuf.forEach(f=>p+=Math.pow(10,f[key]/10)); return 10*Math.log10(p/n+1e-12); }
     const aA=avgBand('a'), aB=avgBand('b'), aBroad=avgBand('broad');
     framesBuf=[];
-    // State machine per ciascuna banda
     smStepBand(sms.A,    aA,    secNow);
     smStepBand(sms.B,    aB,    secNow);
     smStepBand(sms.broad,aBroad,secNow);
-    miniData.push(aB);
-    if(miniData.length>3600) miniData.shift();
+    // Bucket waterfall (1/min)
+    const minNow=Math.floor(nowSec/60);
+    if(minNow>lastBucketMin){
+      lastBucketMin=minNow;
+      specBuckets.push({t:secNow,bins:getWaterfallSlice(fd,SR,fftSz)});
+      drawWaterfall();
+    }
+    drawPresenceStrips();
     sampleBuf.push({sessionId:nightSession.id,t:secNow,a:aA,b:aB,broad:aBroad});
     const now=Date.now();
     if(now-lastFlush>10000||sampleBuf.length>=10){
@@ -893,7 +1016,6 @@ async function nightFrame(){
         if(err.name==='QuotaExceededError') showToast('⚠ Storage pieno! Esporta o elimina sessioni vecchie.',5000);
       });
     }
-    drawMini();
   }
 }
 
@@ -944,19 +1066,20 @@ async function startNight(){
   // Reset state machine per tutte e 3 le bande
   sms={A:createSM('A'), B:createSM('B'), broad:createSM('broad')};
   allEvents=[];
-  framesBuf=[]; lastAggSec=0; sampleBuf=[]; lastFlush=Date.now(); miniData=[];
+  framesBuf=[]; lastAggSec=0; sampleBuf=[]; lastFlush=Date.now();
+  specBuckets=[]; lastBucketMin=-1;
   nightRunning=true;
   // UI
   document.getElementById('btn-night-start').style.display='none';
   document.getElementById('btn-night-stop').style.display='';
-  document.getElementById('night-rec-row').style.display='flex';
+  document.getElementById('night-rec-row').style.display='block';
   document.getElementById('night-idle-msg').style.display='none';
-  document.getElementById('night-stats').style.display='grid';
-  document.getElementById('night-mini-canvas').style.display='block';
+  document.getElementById('night-wf-panel').style.display='';
+  document.getElementById('night-strips-panel').style.display='';
+  document.getElementById('night-now-panel').style.display='';
   document.getElementById('btn-force-event').style.display='';
   document.getElementById('btn-blackout').style.display='';
   document.getElementById('n-events').textContent='0';
-  BAND_KEYS.forEach(k=>setBandUI(k,'—','','—'));
   await keepAwake();
   nightRAF=requestAnimationFrame(nightLoop);
 }
@@ -981,8 +1104,9 @@ async function stopNight(){
   document.getElementById('btn-night-stop').style.display='none';
   document.getElementById('night-rec-row').style.display='none';
   document.getElementById('night-idle-msg').style.display='block';
-  document.getElementById('night-stats').style.display='none';
-  document.getElementById('night-mini-canvas').style.display='none';
+  document.getElementById('night-wf-panel').style.display='none';
+  document.getElementById('night-strips-panel').style.display='none';
+  document.getElementById('night-now-panel').style.display='none';
   const bfe=document.getElementById('btn-force-event');
   bfe.style.display='none'; bfe.disabled=false;
   bfe.textContent='⚡ Il rumore c\'è già — registra da adesso e aspetta la fine';
